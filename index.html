@@ -63,6 +63,18 @@
         // A real-time Firestore listener is the ONLY source for the official leaderboard.
         const quizColRef = collection(db, COLLECTION_NAME);
 
+        // Warn clearly if this device cannot establish the Firestore connection.
+        setTimeout(() => {
+            if (!window.isCloudConnected) {
+                console.warn("[TRIGO QUICK CHECK] Firestore has not connected on this device.");
+                if (typeof window.showToastNotification === "function") {
+                    window.showToastNotification(
+                        "Cloud connection not detected yet. Check internet, Firebase Rules, and deployment."
+                    );
+                }
+            }
+        }, 8000);
+
         onSnapshot(
             quizColRef,
             (snapshot) => {
@@ -1379,18 +1391,22 @@
     }
     window.closeClearModal = closeClearModal;
 
-    function executeClearLeaderboard() {
+    async function executeClearLeaderboard() {
         const selectedSec = document.getElementById('teacher-section-filter').value;
         const scopeRadio = document.querySelector('input[name="clear-scope"]:checked');
         const scope = scopeRadio ? scopeRadio.value : 'CURRENT';
 
-        if (typeof window.clearAttemptsFromCloud === 'function') {
-            window.clearAttemptsFromCloud(scope, selectedSec);
-        }
+        try {
+            if (typeof window.clearAttemptsFromCloud !== 'function') {
+                throw new Error('Firestore clear function is unavailable.');
+            }
 
-        closeClearModal();
-        if (typeof window.renderTeacherDashboard === 'function') {
-            window.renderTeacherDashboard();
+            await window.clearAttemptsFromCloud(scope, selectedSec);
+            window.showToastNotification('Cloud leaderboard cleared successfully ✓');
+        } catch (error) {
+            console.error('[TRIGO QUICK CHECK] Clear leaderboard failed:', error);
+        } finally {
+            closeClearModal();
         }
     }
     window.executeClearLeaderboard = executeClearLeaderboard;
