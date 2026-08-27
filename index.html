@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRIGO QUICK CHECK | Warm-Up Quiz & Teacher Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        navy: '#000080',
+                        navyDark: '#000055',
+                        redAccent: '#FF0000',
+                        crimson: '#A92B3E',
+                        darkBrown: '#3B2525',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- MathJax setup for standard math rendering -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+    <style>
+        :root {
+            --navy: #000080;
+            --red: #FF0000;
+            --crimson: #A92B3E;
+            --dark-brown: #3B2525;
+            --white: #FFFFFF;
+            --bg-light: #F8F9FA;
+            --gray-border: #E2E8F0;
+            --gray-text: #4A5568;
+            --correct-green: #2E7D32;
+            --incorrect-red: #D32F2F;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            color: var(--dark-brown);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        .screen {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .screen.active {
+            display: block;
+            opacity: 1;
+        }
+
+        /* Option cards styling */
+        .option-card {
+            background: var(--white);
+            border: 2px solid var(--gray-border);
+            border-radius: 12px;
+            padding: 14px 18px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--dark-brown);
+        }
+
+        .option-card:hover:not(.disabled) {
+            border-color: var(--navy);
+            background-color: rgba(0, 0, 128, 0.03);
+            transform: translateY(-2px);
+        }
+
+        .option-card.correct {
+            border-color: var(--correct-green) !important;
+            background-color: #E8F5E9 !important;
+            color: var(--correct-green) !important;
+            font-weight: 700;
+        }
+
+        .option-card.incorrect {
+            border-color: var(--incorrect-red) !important;
+            background-color: #FFEBEE !important;
+            color: var(--incorrect-red) !important;
+        }
+
+        .option-card.disabled {
+            cursor: default;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-in-out forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-3 md:p-6">
+
+<div class="w-full max-w-4xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden relative my-4">
+    <!-- Accent Bar -->
+    <div class="h-2.5 bg-gradient-to-r from-navy via-crimson to-redAccent"></div>
+
+    <div class="p-5 md:p-8">
+
+        <!-- 1. WELCOME SCREEN -->
+        <div id="welcome-screen" class="screen active text-center py-4">
+            <span class="inline-block px-3.5 py-1 bg-navy/10 text-navy text-xs font-bold rounded-full mb-3 uppercase tracking-wider">
+                Prerequisite Assessment • Lesson 5.1
+            </span>
+            <h1 class="text-3xl md:text-5xl font-extrabold text-navy mb-2 tracking-tight">
+                TRIGO QUICK CHECK
+            </h1>
+            <h2 class="text-xl md:text-2xl font-bold text-crimson mb-6">
+                Review • Recall • Ready!
+            </h2>
+            <div class="inline-flex items-center gap-2 bg-slate-100 text-navy px-4 py-2 rounded-full text-sm font-semibold mb-6 border border-slate-200">
+                <span>⏱️ 8 Questions • Quick Trigonometry Review</span>
+            </div>
+            <p class="text-slate-600 max-w-xl mx-auto text-base leading-relaxed mb-8">
+                Review the essential trigonometric ideas from your prerequisite notes, then test your understanding through 8 quick interactive questions before we begin <b>Lesson 5.1: The Unit Circle Approach</b>.
+            </p>
+
+            <div class="flex flex-wrap justify-center gap-4">
+                <button onclick="goToStudentDetails()" class="bg-navy hover:bg-navyDark text-white font-bold py-3.5 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 text-lg inline-flex items-center gap-2">
+                    START →
+                </button>
+                <button onclick="openTeacherAuthModal()" class="bg-white hover:bg-slate-50 text-navy border-2 border-navy font-bold py-3.5 px-6 rounded-xl transition-all duration-200 text-base inline-flex items-center gap-2">
+                    👩‍🏫 TEACHER ACCESS
+                </button>
+            </div>
+            <p class="text-xs text-slate-400 italic mt-8">
+                No pressure — this is a diagnostic warm-up activity, not a graded formal exam.
+            </p>
+        </div>
+
+        <!-- 2. STUDENT DETAILS SCREEN -->
+        <div id="details-screen" class="screen max-w-md mx-auto py-4">
+            <div class="flex items-center justify-between mb-6">
+                <button onclick="showScreen('welcome-screen')" class="text-xs font-bold text-navy hover:text-crimson flex items-center gap-1">
+                    ← BACK TO HOME
+                </button>
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Student Registration</span>
+            </div>
+
+            <h2 class="text-2xl font-extrabold text-navy mb-2">Enter Your Details</h2>
+            <p class="text-sm text-slate-600 mb-6">Please enter your name and select your section before starting the review notes.</p>
+
+            <form onsubmit="handleDetailsSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-navy uppercase mb-1">Full Name *</label>
+                    <input type="text" id="student-name" required placeholder="e.g. Ahmad Razak" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-navy focus:border-navy outline-none text-sm transition-all" />
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-navy uppercase mb-1">Section / Class *</label>
+                    <select id="student-section-select" required onchange="handleSectionChange()" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-navy focus:border-navy outline-none text-sm transition-all bg-white">
+                        <option value="" disabled selected>Select your section</option>
+                        <option value="Section 821">Section 821</option>
+                        <option value="Section 818">Section 818</option>
+                        <option value="Section 434">Section 434</option>
+                        <option value="Others">Others</option>
+                    </select>
+                </div>
+
+                <!-- Conditional Input for Others -->
+                <div id="others-section-container" class="hidden">
+                    <label class="block text-xs font-bold text-navy uppercase mb-1">Please specify your section *</label>
+                    <input type="text" id="student-section-custom" placeholder="e.g. Section 101" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-navy focus:border-navy outline-none text-sm transition-all" />
+                </div>
+
+                <div class="pt-4">
+                    <button type="submit" class="w-full bg-navy hover:bg-navyDark text-white font-bold py-3.5 rounded-xl shadow-md transition-all text-base">
+                        CONTINUE TO QUICK REVIEW →
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 3. QUICK REFERENCE NOTES SCREEN -->
+        <div id="notes-screen" class="screen">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-4 mb-6">
+                <button onclick="showScreen('details-screen')" class="text-xs font-bold text-navy hover:text-crimson flex items-center gap-1">
+                    ← BACK
+                </button>
+                <div class="text-center">
+                    <h2 class="text-2xl font-extrabold text-navy">QUICK TRIGO REFRESH</h2>
+                    <p class="text-xs font-semibold text-crimson">Review these ideas before attempting the quiz</p>
+                </div>
+                <div class="text-xs text-slate-400 font-semibold hidden md:block">Prerequisite Review</div>
+            </div>
+
+            <p class="text-sm text-slate-600 mb-6 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                Use this quick reference to refresh what you already know. You may refer to it while answering the quiz questions using the top reference button.
+            </p>
+
+            <!-- Card Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+
+                <!-- CARD 1: QUADRANTS & SIGNS -->
+                <div class="border border-slate-200 rounded-xl p-5 bg-white shadow-sm hover:border-navy/30 transition-all">
+                    <h3 class="font-bold text-navy text-sm uppercase mb-3 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-crimson"></span> Card 1 — Quadrants & Signs
+                    </h3>
+                    <div class="flex flex-col sm:flex-row items-center justify-center bg-slate-50 p-3 rounded-lg border border-slate-100 mb-3 gap-3">
+                        <svg width="170" height="130" viewBox="-90 -65 180 130">
+                            <!-- Axes -->
+                            <line x1="-80" y1="0" x2="80" y2="0" stroke="#3B2525" stroke-width="1.8"/>
+                            <line x1="0" y1="-55" x2="0" y2="55" stroke="#3B2525" stroke-width="1.8"/>
+                            <!-- Labels -->
+                            <text x="35" y="-25" fill="#000080" font-size="11" font-weight="bold">Q I (All +)</text>
+                            <text x="-75" y="-25" fill="#000080" font-size="11" font-weight="bold">Q II (Sin, Csc)</text>
+                            <text x="-75" y="35" fill="#000080" font-size="11" font-weight="bold">Q III (Tan, Cot)</text>
+                            <text x="25" y="35" fill="#000080" font-size="11" font-weight="bold">Q IV (Cos, Sec)</text>
+                        </svg>
+                        <div class="text-xs space-y-1 w-full sm:w-auto">
+                            <div class="p-1.5 bg-blue-50 border border-blue-200 rounded font-semibold text-navy">
+                                <b>Q I:</b> All functions positive (+)
+                            </div>
+                            <div class="p-1.5 bg-emerald-50 border border-emerald-200 rounded font-semibold text-emerald-900">
+                                <b>Q II:</b> $\sin$, $\csc$ positive (+)
+                            </div>
+                            <div class="p-1.5 bg-amber-50 border border-amber-200 rounded font-semibold text-amber-900">
+                                <b>Q III:</b> $\tan$, $\cot$ positive (+)
+                            </div>
+                            <div class="p-1.5 bg-rose-50 border border-rose-200 rounded font-semibold text-rose-900">
+                                <b>Q IV:</b> $\cos$, $\sec$ positive (+)
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-xs text-center bg-navy/5 text-navy p-2 rounded-lg font-bold">
+                        ASTC Memory Aid: All → Sin → Tan → Cos
+                    </div>
+                </div>
+
+                <!-- CARD 2: ANGLES & THEIR MEASURE -->
+                <div class="border border-slate-200 rounded-xl p-5 bg-white shadow-sm hover:border-navy/30 transition-all">
+                    <h3 class="font-bold text-navy text-sm uppercase mb-3 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-crimson"></span> Card 2 — Angles & Their Measure
+                    </h3>
+                    
+                    <div class="grid grid-cols-2 gap-2 text-xs mb-3">
+                        <!-- Positive Angle -->
+                        <div class="bg-slate-50 p-2 rounded border border-slate-200 text-center">
+                            <div class="font-bold text-emerald-800 mb-1">+ $\theta$ (Anti-clockwise ↺)</div>
+                            <svg width="110" height="65" viewBox="-50 -35 110 65" class="mx-auto">
+                                <line x1="-40" y1="0" x2="50" y2="0" stroke="#3B2525" stroke-width="1.2"/>
+                                <line x1="0" y1="-30" x2="0" y2="30" stroke="#3B2525" stroke-width="1.2"/>
+                                <line x1="0" y1="0" x2="35" y2="-25" stroke="#000080" stroke-width="1.8"/>
+                                <path d="M 18 0 A 18 18 0 0 0 13 -12" fill="none" stroke="#2E7D32" stroke-width="1.8"/>
+                                <polygon points="12,-14 16,-10 10,-8" fill="#2E7D32"/>
+                                <text x="20" y="-8" fill="#2E7D32" font-size="10" font-weight="bold">+θ</text>
+                            </svg>
+                        </div>
+
+                        <!-- Negative Angle -->
+                        <div class="bg-slate-50 p-2 rounded border border-slate-200 text-center">
+                            <div class="font-bold text-rose-800 mb-1">− $\theta$ (Clockwise ↻)</div>
+                            <svg width="110" height="65" viewBox="-50 -35 110 65" class="mx-auto">
+                                <line x1="-40" y1="0" x2="50" y2="0" stroke="#3B2525" stroke-width="1.2"/>
+                                <line x1="0" y1="-30" x2="0" y2="30" stroke="#3B2525" stroke-width="1.2"/>
+                                <line x1="0" y1="0" x2="35" y2="25" stroke="#000080" stroke-width="1.8"/>
+                                <path d="M 18 0 A 18 18 0 0 1 13 12" fill="none" stroke="#D32F2F" stroke-width="1.8"/>
+                                <polygon points="12,14 16,10 10,8" fill="#D32F2F"/>
+                                <text x="20" y="10" fill="#D32F2F" font-size="10" font-weight="bold">−θ</text>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Conversion strip -->
+                    <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-xs">
+                        <div class="font-bold text-navy mb-1 text-center">Key Equivalence: $180^\circ = \pi\text{ rad}$</div>
+                        <div class="grid grid-cols-4 gap-1 text-center font-mono text-[11px] text-slate-700">
+                            <div class="bg-white p-1 rounded border">$30^\circ = \frac{\pi}{6}$</div>
+                            <div class="bg-white p-1 rounded border">$45^\circ = \frac{\pi}{4}$</div>
+                            <div class="bg-white p-1 rounded border">$60^\circ = \frac{\pi}{3}$</div>
+                            <div class="bg-white p-1 rounded border">$90^\circ = \frac{\pi}{2}$</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CARD 3: SPECIAL ANGLES USING RIGHT TRIANGLES -->
+                <div class="border border-slate-200 rounded-xl p-5 bg-white shadow-sm hover:border-navy/30 transition-all">
+                    <h3 class="font-bold text-navy text-sm uppercase mb-3 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-crimson"></span> Card 3 — Special Angle Triangles
+                    </h3>
+
+                    <div class="grid grid-cols-2 gap-2 text-xs mb-2">
+                        <!-- 30-60-90 -->
+                        <div class="bg-slate-50 p-2 rounded border border-slate-200 text-center">
+                            <div class="font-bold text-navy mb-1">30°–60°–90°</div>
+                            <svg width="110" height="70" viewBox="-10 -15 130 80" class="mx-auto">
+                                <polygon points="0,50 86.6,50 86.6,0" fill="none" stroke="#000080" stroke-width="2"/>
+                                <text x="12" y="45" fill="#3B2525" font-size="9" font-weight="bold">60°</text>
+                                <text x="66" y="18" fill="#3B2525" font-size="9" font-weight="bold">30°</text>
+                                <text x="92" y="30" fill="#A92B3E" font-size="10" font-weight="bold">√3</text>
+                                <text x="40" y="63" fill="#A92B3E" font-size="10" font-weight="bold">1</text>
+                                <text x="35" y="20" fill="#FF0000" font-size="10" font-weight="bold">2</text>
+                            </svg>
+                            <div class="mt-1 font-semibold text-slate-700">
+                                $\sin 30^\circ = \frac{1}{2}, \quad \cos 30^\circ = \frac{\sqrt{3}}{2}$
+                            </div>
+                        </div>
+
+                        <!-- 45-45-90 -->
+                        <div class="bg-slate-50 p-2 rounded border border-slate-200 text-center">
+                            <div class="font-bold text-navy mb-1">45°–45°–90°</div>
+                            <svg width="90" height="70" viewBox="-15 -15 105 80" class="mx-auto">
+                                <polygon points="0,50 50,50 50,0" fill="none" stroke="#000080" stroke-width="2"/>
+                                <text x="8" y="44" fill="#3B2525" font-size="9" font-weight="bold">45°</text>
+                                <text x="54" y="32" fill="#A92B3E" font-size="10" font-weight="bold">1</text>
+                                <text x="22" y="63" fill="#A92B3E" font-size="10" font-weight="bold">1</text>
+                                <text x="15" y="20" fill="#FF0000" font-size="10" font-weight="bold">√2</text>
+                            </svg>
+                            <div class="mt-1 font-semibold text-slate-700">
+                                $\sin 45^\circ = \cos 45^\circ = \frac{\sqrt{2}}{2}$
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CARD 4: FUNDAMENTAL IDENTITIES -->
+                <div class="border border-slate-200 rounded-xl p-5 bg-white shadow-sm hover:border-navy/30 transition-all">
+                    <h3 class="font-bold text-navy text-sm uppercase mb-3 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-crimson"></span> Card 4 — Fundamental Identities
+                    </h3>
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs space-y-2">
+                        <div class="flex justify-between border-b border-slate-200 pb-1.5">
+                            <span class="font-bold text-navy">Quotient Identities:</span>
+                            <span>$\tan \theta = \frac{\sin \theta}{\cos \theta}$, $\cot \theta = \frac{\cos \theta}{\sin \theta}$</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-bold text-navy">Reciprocal Identities:</span>
+                            <span>$\csc \theta = \frac{1}{\sin \theta}$, $\sec \theta = \frac{1}{\cos \theta}$, $\cot \theta = \frac{1}{\tan \theta}$</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="text-center">
+                <button onclick="startQuizFromRefresh()" class="bg-navy hover:bg-navyDark text-white font-bold py-3.5 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 text-base">
+                    I'M READY — START QUIZ →
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. INTERACTIVE QUIZ SCREEN -->
+        <div id="question-screen" class="screen">
+            <!-- Header bar with Navigation and Quick Reference -->
+            <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-3">
+                    <button id="quiz-back-btn" onclick="prevQuestion()" class="text-xs font-bold text-navy hover:text-crimson">
+                        ← BACK
+                    </button>
+                    <div>
+                        <span id="progress-text" class="text-xs font-bold text-navy uppercase tracking-wider">Question 1 of 8</span>
+                        <span id="progress-percent" class="text-xs font-semibold text-slate-400 ml-2">12%</span>
+                    </div>
+                </div>
+                <button onclick="openReferenceModal()" class="inline-flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-navy font-bold text-xs px-3 py-1.5 rounded-lg border border-slate-300 transition-all">
+                    <span>📖 QUICK REFERENCE</span>
+                </button>
+            </div>
+
+            <!-- Visual Progress Bar -->
+            <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden mb-6">
+                <div id="progress-bar-fill" class="h-full bg-gradient-to-r from-navy to-redAccent transition-all duration-300 w-0"></div>
+            </div>
+
+            <!-- Question & Diagram Container -->
+            <div id="question-text" class="text-lg font-semibold text-darkBrown mb-4 leading-snug"></div>
+            <div id="diagram-container" class="flex justify-center items-center bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4 mb-5" style="display: none;"></div>
+
+            <!-- Options Grid -->
+            <div id="options-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6"></div>
+
+            <!-- Instant Feedback Box -->
+            <div id="feedback-box" class="hidden p-4 rounded-xl text-sm leading-relaxed mb-6 animate-fade-in">
+                <div id="feedback-title" class="font-extrabold flex items-center gap-2 text-base mb-1"></div>
+                <div id="feedback-hint" class="text-slate-700"></div>
+            </div>
+
+            <!-- Action button -->
+            <div class="flex justify-end">
+                <button id="next-btn" style="display: none;" onclick="nextQuestion()" class="bg-navy hover:bg-navyDark text-white font-bold py-3 px-6 rounded-xl shadow-md hover:shadow-lg transition-all text-sm inline-flex items-center gap-2">
+                    Next Question &rarr;
+                </button>
+            </div>
+        </div>
+
+        <!-- 5. STUDENT RESULTS SCREEN (PRIVATE FOR STUDENTS) -->
+        <div id="results-screen" class="screen text-center py-4">
+            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 mb-6">
+                <div class="text-xs font-bold text-crimson uppercase tracking-wider mb-1">YOUR TRIGO READINESS SCORE</div>
+                <div id="result-student-info" class="text-sm font-semibold text-slate-600 mb-3">Student Name (Section)</div>
+                <div id="score-display" class="text-5xl font-extrabold text-navy mb-3">0 / 8</div>
+                <div id="score-percentage" class="text-sm font-bold text-slate-500 mb-3">0%</div>
+                <div id="badge-status" class="inline-block px-4 py-1.5 rounded-full font-extrabold text-sm mb-3">STATUS</div>
+                <p id="result-feedback" class="text-slate-600 text-sm max-w-md mx-auto leading-relaxed"></p>
+            </div>
+
+            <div class="flex flex-wrap justify-center gap-3">
+                <button onclick="toggleReview()" class="bg-white border-2 border-navy text-navy hover:bg-navy/5 font-bold py-2.5 px-5 rounded-xl transition-all text-sm">
+                    REVIEW ANSWERS
+                </button>
+                <button onclick="restartQuiz()" class="bg-navy hover:bg-navyDark text-white font-bold py-2.5 px-5 rounded-xl shadow-md transition-all text-sm">
+                    TRY AGAIN ↺
+                </button>
+                <button onclick="showScreen('notes-screen')" class="bg-slate-100 hover:bg-slate-200 text-navy font-bold py-2.5 px-5 rounded-xl border border-slate-300 transition-all text-sm">
+                    📖 REVIEW NOTES
+                </button>
+                <button onclick="openTeacherAuthModal()" class="bg-crimson hover:bg-red-800 text-white font-bold py-2.5 px-5 rounded-xl transition-all text-sm">
+                    👩‍🏫 TEACHER ACCESS
+                </button>
+                <button onclick="showScreen('welcome-screen')" class="bg-slate-200 hover:bg-slate-300 text-darkBrown font-bold py-2.5 px-5 rounded-xl transition-all text-sm">
+                    HOME
+                </button>
+            </div>
+        </div>
+
+        <!-- 6. REVIEW ANSWERS SCREEN -->
+        <div id="review-screen" class="screen">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+                <button onclick="showScreen('results-screen')" class="text-xs font-bold text-navy hover:text-crimson">
+                    ← BACK TO RESULTS
+                </button>
+                <h2 class="text-xl font-extrabold text-navy">Detailed Answer Review</h2>
+            </div>
+            <div id="review-list-container" class="space-y-4 max-h-[60vh] overflow-y-auto pr-2"></div>
+        </div>
+
+        <!-- 7. TEACHER DASHBOARD & LEADERBOARD SCREEN (TEACHER ONLY) -->
+        <div id="teacher-dashboard-screen" class="screen">
+            <div class="flex flex-wrap items-center justify-between border-b border-slate-200 pb-3 mb-4 gap-2">
+                <div>
+                    <h2 class="text-xl font-extrabold text-navy flex items-center gap-2">
+                        <span>👩‍🏫 TEACHER PERFORMANCE DASHBOARD</span>
+                    </h2>
+                    <p class="text-xs text-slate-500">Prerequisite Diagnostic Analytics & Best Attempt Rankings</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="teacherLogout()" class="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-3 py-1.5 rounded-lg text-xs transition-all">
+                        LOG OUT TEACHER
+                    </button>
+                    <button onclick="showScreen('welcome-screen')" class="bg-slate-100 hover:bg-slate-200 text-navy font-bold px-3 py-1.5 rounded-lg text-xs border border-slate-300 transition-all">
+                        HOME
+                    </button>
+                </div>
+            </div>
+
+            <!-- Global Controls & Section Filter Bar with Clear Leaderboard Button -->
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div>
+                    <label class="block text-xs font-bold text-navy uppercase mb-1">Filter by Section / Class</label>
+                    <select id="teacher-section-filter" onchange="renderTeacherDashboard()" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 bg-white">
+                        <option value="All Sections" selected>All Sections (Combined)</option>
+                        <option value="Section 821">Section 821</option>
+                        <option value="Section 818">Section 818</option>
+                        <option value="Section 434">Section 434</option>
+                        <option value="Others">Others</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-navy uppercase mb-1">Leaderboard Sort Order</label>
+                    <select id="teacher-sort-filter" onchange="renderTeacherDashboard()" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 bg-white">
+                        <option value="DEFAULT" selected>Default (Score ↓, Time ↑)</option>
+                        <option value="HIGHEST_SCORE">Highest Score</option>
+                        <option value="LOWEST_SCORE">Lowest Score</option>
+                        <option value="FASTEST_TIME">Fastest Completion</option>
+                        <option value="SLOWEST_TIME">Slowest Completion</option>
+                        <option value="NAME_AZ">Student Name A–Z</option>
+                    </select>
+                </div>
+                <div class="flex justify-end">
+                    <button onclick="openClearModal()" class="w-full md:w-auto bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-bold px-3 py-2.5 rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm">
+                        <span>🗑️ CLEAR LEADERBOARD</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Teacher Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                <div class="bg-slate-50 border p-3 rounded-xl text-center">
+                    <div class="text-[11px] font-bold text-slate-500 uppercase">Participants</div>
+                    <div id="td-total-students" class="text-2xl font-extrabold text-navy">0</div>
+                    <div class="text-[10px] text-slate-400">Unique Students</div>
+                </div>
+                <div class="bg-slate-50 border p-3 rounded-xl text-center">
+                    <div class="text-[11px] font-bold text-slate-500 uppercase">Mean Score</div>
+                    <div id="td-mean-score" class="text-2xl font-extrabold text-navy">—</div>
+                    <div id="td-mean-pct" class="text-[10px] text-slate-400">0% avg</div>
+                </div>
+                <div class="bg-slate-50 border p-3 rounded-xl text-center">
+                    <div class="text-[11px] font-bold text-slate-500 uppercase">Highest Score</div>
+                    <div id="td-highest-score" class="text-2xl font-extrabold text-emerald-700">—</div>
+                    <div class="text-[10px] text-emerald-600 font-bold">Top performance</div>
+                </div>
+                <div class="bg-slate-50 border p-3 rounded-xl text-center">
+                    <div class="text-[11px] font-bold text-slate-500 uppercase">Mean Duration</div>
+                    <div id="td-mean-time" class="text-2xl font-extrabold text-navy">—</div>
+                    <div class="text-[10px] text-slate-400">mm:ss</div>
+                </div>
+                <div class="bg-slate-50 border p-3 rounded-xl text-center col-span-2 md:col-span-1">
+                    <div class="text-[11px] font-bold text-slate-500 uppercase">Ready Band</div>
+                    <div id="td-ready-pct" class="text-2xl font-extrabold text-crimson">0%</div>
+                    <div class="text-[10px] text-crimson font-bold">Scored 7–8 / 8</div>
+                </div>
+            </div>
+
+            <!-- Score Band Distribution Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6 text-xs">
+                <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <div class="font-bold text-emerald-900 mb-1 flex justify-between">
+                        <span>🚀 READY TO EXPLORE (7–8)</span>
+                        <span id="band-ready-count">0 students</span>
+                    </div>
+                    <div id="band-ready-bar" class="w-full bg-emerald-200 h-2 rounded-full overflow-hidden mt-2">
+                        <div id="band-ready-fill" class="bg-emerald-600 h-full w-0 transition-all duration-300"></div>
+                    </div>
+                </div>
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <div class="font-bold text-amber-900 mb-1 flex justify-between">
+                        <span>👍 ALMOST THERE (5–6)</span>
+                        <span id="band-almost-count">0 students</span>
+                    </div>
+                    <div id="band-almost-bar" class="w-full bg-amber-200 h-2 rounded-full overflow-hidden mt-2">
+                        <div id="band-almost-fill" class="bg-amber-600 h-full w-0 transition-all duration-300"></div>
+                    </div>
+                </div>
+                <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl">
+                    <div class="font-bold text-rose-900 mb-1 flex justify-between">
+                        <span>💡 REFRESH NEEDED (0–4)</span>
+                        <span id="band-refresh-count">0 students</span>
+                    </div>
+                    <div id="band-refresh-bar" class="w-full bg-rose-200 h-2 rounded-full overflow-hidden mt-2">
+                        <div id="band-refresh-fill" class="bg-rose-600 h-full w-0 transition-all duration-300"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 1. OFFICIAL STUDENT LEADERBOARD (MOVED FIRST BEFORE ITEM ANALYSIS) -->
+            <div class="mb-6">
+                <h3 class="font-extrabold text-navy text-sm uppercase mb-1">🏆 Official Student Leaderboard (Best Attempt)</h3>
+                <p class="text-xs text-slate-500 mb-3">Ranked by Score (Highest First), then Completion Time (Fastest First).</p>
+                <div class="overflow-x-auto border border-slate-200 rounded-xl max-h-80 overflow-y-auto">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-slate-800 text-white font-bold uppercase sticky top-0 z-10">
+                                <th class="p-3">Rank</th>
+                                <th class="p-3">Student Name</th>
+                                <th class="p-3">Section</th>
+                                <th class="p-3">Correct</th>
+                                <th class="p-3">Score</th>
+                                <th class="p-3">Percentage</th>
+                                <th class="p-3">Completion Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="teacher-leaderboard-tbody">
+                            <!-- Dynamic Leaderboard Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. ITEM ANALYSIS (MISCONCEPTION IDENTIFICATION) -->
+            <div class="mb-6">
+                <h3 class="font-extrabold text-navy text-sm uppercase mb-2 flex items-center justify-between">
+                    <span>Item Misconception Analysis (Q1–Q8)</span>
+                    <span id="most-challenging-badge" class="hidden text-xs bg-rose-100 text-rose-800 font-bold px-2.5 py-1 rounded-full border border-rose-300"></span>
+                </h3>
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-navy text-white font-bold uppercase">
+                                <th class="p-2.5">Q#</th>
+                                <th class="p-2.5">Concept Area</th>
+                                <th class="p-2.5">Correct</th>
+                                <th class="p-2.5">Incorrect</th>
+                                <th class="p-2.5">% Pass</th>
+                                <th class="p-2.5">Diagnostic Flag</th>
+                            </tr>
+                        </thead>
+                        <tbody id="item-analysis-table-body">
+                            <!-- Dynamic Item Analysis Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<!-- MODAL 1: TEACHER ACCESS AUTHENTICATION -->
+<div id="teacher-auth-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative animate-fade-in">
+        <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+            <h3 class="font-extrabold text-navy text-lg flex items-center gap-2">
+                <span>👩‍🏫 Teacher Authentication</span>
+            </h3>
+            <button onclick="closeTeacherAuthModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg px-2">
+                ✕
+            </button>
+        </div>
+
+        <p class="text-xs text-slate-600 mb-4 leading-relaxed">
+            Please enter your teacher access code to open the Teacher Performance Dashboard and Leaderboard.
+        </p>
+
+        <form onsubmit="handleTeacherAuthSubmit(event)" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-navy uppercase mb-1">Teacher Access Code *</label>
+                <input type="password" id="teacher-pass-input" required placeholder="Enter access code" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-navy focus:border-navy outline-none text-sm transition-all" />
+            </div>
+
+            <div id="teacher-auth-error" class="hidden text-xs font-bold text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                Incorrect access code. Teacher access only.
+            </div>
+
+            <p class="text-[11px] text-slate-400 italic">
+                Note: This access code provides client-side interface access control for this standalone activity.
+            </p>
+
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onclick="closeTeacherAuthModal()" class="bg-slate-200 hover:bg-slate-300 text-darkBrown font-bold px-4 py-2.5 rounded-xl text-xs transition-all">
+                    CANCEL
+                </button>
+                <button type="submit" class="bg-navy hover:bg-navyDark text-white font-bold px-5 py-2.5 rounded-xl text-xs shadow-md transition-all">
+                    SUBMIT & ACCESS →
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- MODAL 2: QUICK REFERENCE MODAL (IN-QUIZ) -->
+<div id="reference-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-6 hidden">
+    <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden relative animate-fade-in">
+        <div class="flex items-center justify-between bg-slate-100 p-4 border-b border-slate-200">
+            <h3 class="font-extrabold text-navy text-base md:text-lg flex items-center gap-2">
+                <span>📖 QUICK TRIGO REFRESH (REFERENCE)</span>
+            </h3>
+            <button onclick="closeReferenceModal()" class="bg-navy hover:bg-navyDark text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all">
+                ← BACK TO QUESTION
+            </button>
+        </div>
+
+        <div class="p-4 md:p-6 overflow-y-auto space-y-4 text-xs">
+            <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-navy font-semibold">
+                💡 <b>ASTC Rule:</b> Q I (All +), Q II ($\sin, \csc +$), Q III ($\tan, \cot +$), Q IV ($\cos, \sec +$)
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div class="font-bold text-navy mb-1">30°–60°–90° Right Triangle</div>
+                    <div class="text-slate-700 mb-1">Opposite 30° = 1 | Opposite 60° = $\sqrt{3}$ | Hypotenuse = 2</div>
+                    <div class="font-semibold text-slate-800">$\sin 30^\circ = \frac{1}{2}, \quad \cos 30^\circ = \frac{\sqrt{3}}{2}$</div>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <div class="font-bold text-navy mb-1">45°–45°–90° Right Triangle</div>
+                    <div class="text-slate-700 mb-1">Opposite 45° = 1 | Adjacent 45° = 1 | Hypotenuse = $\sqrt{2}$</div>
+                    <div class="font-semibold text-slate-800">$\sin 45^\circ = \cos 45^\circ = \frac{\sqrt{2}}{2}$</div>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div class="font-bold text-navy mb-1">Fundamental Identities</div>
+                <div class="text-slate-700">$\tan \theta = \frac{\sin \theta}{\cos \theta}, \quad \cot \theta = \frac{\cos \theta}{\sin \theta}, \quad \csc \theta = \frac{1}{\sin \theta}, \quad \sec \theta = \frac{1}{\cos \theta}$</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 3: CLEAR LEADERBOARD CONFIRMATION (TEACHER ONLY) -->
+<div id="clear-leaderboard-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative animate-fade-in">
+        <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+            <h3 class="font-extrabold text-navy text-lg flex items-center gap-2">
+                <span>🗑️ Clear Leaderboard Data</span>
+            </h3>
+            <button onclick="closeClearModal()" class="text-slate-400 hover:text-slate-600 font-bold text-lg px-2">
+                ✕
+            </button>
+        </div>
+
+        <p class="text-xs text-slate-600 mb-4 leading-relaxed">
+            Are you sure you want to delete stored student records? Select the scope of deletion below.
+        </p>
+
+        <div class="space-y-3 mb-6">
+            <label class="flex items-start gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 cursor-pointer hover:border-navy transition-all">
+                <input type="radio" name="clear-scope" value="CURRENT" checked class="mt-0.5 text-navy focus:ring-navy" />
+                <div>
+                    <div class="text-xs font-bold text-navy">Clear Selected Section Only (<span id="clear-target-section-name" class="underline">All Sections</span>)</div>
+                    <div class="text-[11px] text-slate-500">Deletes only student attempts matching the currently active section filter.</div>
+                </div>
+            </label>
+
+            <label class="flex items-start gap-3 bg-rose-50 p-3 rounded-xl border border-rose-200 cursor-pointer hover:border-rose-400 transition-all">
+                <input type="radio" name="clear-scope" value="ALL" class="mt-0.5 text-rose-600 focus:ring-rose-500" />
+                <div>
+                    <div class="text-xs font-bold text-rose-900">Clear ALL Sections (Entire Leaderboard)</div>
+                    <div class="text-[11px] text-rose-700 font-semibold">⚠️ Permanently removes all student records across all classes and sections.</div>
+                </div>
+            </label>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
+            <button onclick="closeClearModal()" class="bg-slate-200 hover:bg-slate-300 text-darkBrown font-bold px-4 py-2.5 rounded-xl text-xs transition-all">
+                CANCEL
+            </button>
+            <button onclick="executeClearLeaderboard()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold px-4 py-2.5 rounded-xl text-xs shadow-md transition-all">
+                YES, CLEAR LEADERBOARD
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Master Questions Dataset
+    const masterQuestions = [
+        {
+            id: 1,
+            type: "Quadrant Identification",
+            text: "Identify the quadrant containing the terminal side of angle $\\theta$ shown in the diagram:",
+            hasDiagram: true,
+            diagramType: "quadrant_quad3",
+            options: [
+                { text: "Quadrant I", correct: false },
+                { text: "Quadrant II", correct: false },
+                { text: "Quadrant III", correct: true },
+                { text: "Quadrant IV", correct: false }
+            ],
+            explanation: "The terminal ray lies in the bottom-left region where $x < 0$ and $y < 0$, which corresponds to Quadrant III."
+        },
+        {
+            id: 2,
+            type: "Angle Rotation Direction",
+            text: "If an angle $\\theta$ is generated by a <b>clockwise</b> rotation from the initial side (as shown), what type of angle is it?",
+            hasDiagram: true,
+            diagramType: "rotation_negative",
+            options: [
+                { text: "Positive angle", correct: false },
+                { text: "Negative angle", correct: true },
+                { text: "Quadrantal angle", correct: false },
+                { text: "Right angle", correct: false }
+            ],
+            explanation: "By mathematical convention, clockwise rotation from the initial side generates a negative angle ($-\\theta$), whereas anti-clockwise rotation generates a positive angle ($+\\theta$)."
+        },
+        {
+            id: 3,
+            type: "Sign of Trigonometric Function",
+            text: "If angle $\\theta$ lies in <b>Quadrant III</b>, what is the algebraic sign of $\\sin \\theta$?",
+            hasDiagram: false,
+            options: [
+                { text: "Positive (+)", correct: false },
+                { text: "Negative (−)", correct: true },
+                { text: "Zero", correct: false },
+                { text: "Undefined", correct: false }
+            ],
+            explanation: "In Quadrant III, vertical displacement $y < 0$. Since $\\sin \\theta$ corresponds to $y$, $\\sin \\theta$ is negative. (ASTC rule: only $\\tan$ and $\\cot$ are positive in Q III)."
+        },
+        {
+            id: 4,
+            type: "Positive Functions (ASTC)",
+            text: "Which trigonometric function(s) are <b>positive</b> in <b>Quadrant II</b>?",
+            hasDiagram: false,
+            options: [
+                { text: "Cosine and Secant only", correct: false },
+                { text: "Sine and Cosecant only", correct: true },
+                { text: "Tangent and Cotangent only", correct: false },
+                { text: "All trigonometric functions", correct: false }
+            ],
+            explanation: "According to the ASTC rule ('All Students Take Calculus'), Quadrant II has $y > 0$ and $x < 0$, so only Sine and its reciprocal Cosecant ($\csc \\theta = \\frac{1}{\\sin \\theta}$) are positive."
+        },
+        {
+            id: 5,
+            type: "30°-60°-90° Special Triangle",
+            text: "Using the $30^\\circ$-$60^\\circ$-$90^\\circ$ right triangle shown, what is the exact value of $\\sin 30^\\circ$?",
+            hasDiagram: true,
+            diagramType: "triangle_30_60",
+            options: [
+                { text: "$\\frac{1}{2}$", correct: true },
+                { text: "$\\frac{\\sqrt{3}}{2}$", correct: false },
+                { text: "$\\frac{1}{\\sqrt{3}}$", correct: false },
+                { text: "$\\sqrt{3}$", correct: false }
+            ],
+            explanation: "$\\sin \\theta = \\frac{\\text{Opposite}}{\\text{Hypotenuse}}$. For $30^\\circ$, the side opposite is $1$ (the base) and hypotenuse is $2$, so $\\sin 30^\\circ = \\frac{1}{2}$."
+        },
+        {
+            id: 6,
+            type: "45°-45°-90° Special Triangle",
+            text: "Using the $45^\\circ$-$45^\\circ$-$90^\\circ$ right triangle shown, determine the exact value of $\\cos 45^\\circ$:",
+            hasDiagram: true,
+            diagramType: "triangle_45_45",
+            options: [
+                { text: "$\\frac{1}{2}$", correct: false },
+                { text: "$\\frac{\\sqrt{2}}{2}$", correct: true },
+                { text: "$\\sqrt{2}$", correct: false },
+                { text: "$1$", correct: false }
+            ],
+            explanation: "$\\cos 45^\\circ = \\frac{\\text{Adjacent}}{\\text{Hypotenuse}} = \\frac{1}{\\sqrt{2}}$, which rationalizes to $\\frac{\\sqrt{2}}{2}$."
+        },
+        {
+            id: 7,
+            type: "Fundamental Identity",
+            text: "Which identity correctly defines $\\tan \\theta$ in terms of $\\sin \\theta$ and $\\cos \\theta$?",
+            hasDiagram: false,
+            options: [
+                { text: "$\\tan \\theta = \\frac{\\cos \\theta}{\\sin \\theta}$", correct: false },
+                { text: "$\\tan \\theta = \\frac{\\sin \\theta}{\\cos \\theta}$", correct: true },
+                { text: "$\\tan \\theta = \\sin \\theta \\cdot \\cos \\theta$", correct: false },
+                { text: "$\\tan \\theta = \\frac{1}{\\cos \\theta}$", correct: false }
+            ],
+            explanation: "The quotient identity states that tangent is the ratio of Sine divided by Cosine: $\\tan \\theta = \\frac{\\sin \\theta}{\\cos \\theta}$."
+        },
+        {
+            id: 8,
+            type: "Bridge to Today's Lesson",
+            text: "For a point $P(x,y)$ corresponding to an angle $\\theta$, which coordinates define $\\cos \\theta$ and $\\sin \\theta$?",
+            hasDiagram: true,
+            diagramType: "unit_circle_intro",
+            options: [
+                { text: "$x = \\sin \\theta, \\quad y = \\cos \\theta$", correct: false },
+                { text: "$x = \\cos \\theta, \\quad y = \\sin \\theta$", correct: true },
+                { text: "$x = \\tan \\theta, \\quad y = \\sin \\theta$", correct: false },
+                { text: "$x = \\cos \\theta, \\quad y = 1$", correct: false }
+            ],
+            explanation: "Horizontal displacement corresponds to $x = \\cos \\theta$ and vertical displacement corresponds to $y = \\sin \\theta$. This forms the core bridge to the Unit Circle Approach."
+        }
+    ];
+
+    // Application State Variables
+    let studentName = "";
+    let studentSection = "";
+    let currentQuestions = [];
+    let currentIndex = 0;
+    let score = 0;
+    let userAnswers = [];
+    let isAnsweredCurrent = [];
+    
+    // Timer Mechanics
+    let quizStartTime = 0;
+    let pausedTimeTotal = 0;
+    let modalOpenTime = 0;
+
+    // Teacher & Attempt History Storage
+    let attemptsHistory = JSON.parse(localStorage.getItem('trigo_attempts_history') || '[]');
+    let isTeacherAuthenticated = false;
+
+    // SVG Diagram Render Generator
+    function getDiagramSVG(type) {
+        if (type === "quadrant_quad3") {
+            return `
+            <svg width="180" height="180" viewBox="-100 -100 200 200">
+                <line x1="-90" y1="0" x2="90" y2="0" stroke="#3B2525" stroke-width="2"/>
+                <line x1="0" y1="-90" x2="0" y2="90" stroke="#3B2525" stroke-width="2"/>
+                <text x="70" y="-10" fill="#000080" font-size="13" font-weight="bold">I</text>
+                <text x="-80" y="-10" fill="#000080" font-size="13" font-weight="bold">II</text>
+                <text x="-80" y="25" fill="#000080" font-size="13" font-weight="bold">III</text>
+                <text x="70" y="25" fill="#000080" font-size="13" font-weight="bold">IV</text>
+                <line x1="0" y1="0" x2="-60" y2="60" stroke="#FF0000" stroke-width="3"/>
+                <polygon points="-60,60 -50,57 -57,50" fill="#FF0000"/>
+                <path d="M 20 0 A 20 20 0 1 1 -14 14" fill="none" stroke="#A92B3E" stroke-width="2" stroke-dasharray="3,3"/>
+                <text x="-30" y="28" fill="#A92B3E" font-size="13" font-weight="bold">θ</text>
+            </svg>`;
+        } else if (type === "rotation_negative") {
+            return `
+            <svg width="180" height="180" viewBox="-100 -100 200 200">
+                <line x1="-90" y1="0" x2="90" y2="0" stroke="#3B2525" stroke-width="2"/>
+                <line x1="0" y1="-90" x2="0" y2="90" stroke="#3B2525" stroke-width="2"/>
+                <line x1="0" y1="0" x2="60" y2="60" stroke="#000080" stroke-width="2.5"/>
+                <path d="M 25 0 A 25 25 0 0 1 18 18" fill="none" stroke="#D32F2F" stroke-width="2.5"/>
+                <polygon points="18,18 22,12 14,12" fill="#D32F2F"/>
+                <text x="32" y="15" fill="#D32F2F" font-size="13" font-weight="bold">θ</text>
+            </svg>`;
+        } else if (type === "triangle_30_60") {
+            return `
+            <svg width="210" height="140" viewBox="-10 -15 220 150">
+                <polygon points="0,110 173.2,110 173.2,10" fill="none" stroke="#000080" stroke-width="2.5"/>
+                <rect x="158.2" y="95" width="15" height="15" fill="none" stroke="#000080" stroke-width="1.5"/>
+                <text x="20" y="103" fill="#3B2525" font-size="13" font-weight="bold">60°</text>
+                <text x="145" y="32" fill="#3B2525" font-size="13" font-weight="bold">30°</text>
+                <text x="182" y="65" fill="#A92B3E" font-size="14" font-weight="bold">√3</text>
+                <text x="75" y="130" fill="#A92B3E" font-size="14" font-weight="bold">1</text>
+                <text x="75" y="50" fill="#FF0000" font-size="14" font-weight="bold">2</text>
+            </svg>`;
+        } else if (type === "triangle_45_45") {
+            return `
+            <svg width="170" height="150" viewBox="-15 -15 185 165">
+                <polygon points="0,120 120,120 120,0" fill="none" stroke="#000080" stroke-width="2.5"/>
+                <rect x="105" y="105" width="15" height="15" fill="none" stroke="#000080" stroke-width="1.5"/>
+                <text x="16" y="113" fill="#3B2525" font-size="13" font-weight="bold">45°</text>
+                <text x="92" y="28" fill="#3B2525" font-size="13" font-weight="bold">45°</text>
+                <text x="128" y="65" fill="#A92B3E" font-size="14" font-weight="bold">1</text>
+                <text x="55" y="140" fill="#A92B3E" font-size="14" font-weight="bold">1</text>
+                <text x="45" y="55" fill="#FF0000" font-size="14" font-weight="bold">√2</text>
+            </svg>`;
+        } else if (type === "unit_circle_intro") {
+            return `
+            <svg width="180" height="180" viewBox="-100 -100 200 200">
+                <circle cx="0" cy="0" r="75" fill="none" stroke="#CBD5E0" stroke-width="1.5"/>
+                <line x1="-90" y1="0" x2="90" y2="0" stroke="#3B2525" stroke-width="1.5"/>
+                <line x1="0" y1="-90" x2="0" y2="90" stroke="#3B2525" stroke-width="1.5"/>
+                <line x1="0" y1="0" x2="53" y2="-53" stroke="#000080" stroke-width="2"/>
+                <circle cx="53" cy="-53" r="4.5" fill="#FF0000"/>
+                <text x="60" y="-58" fill="#000080" font-size="13" font-weight="bold">P(x, y)</text>
+                <path d="M 22 0 A 22 22 0 0 0 16 -16" fill="none" stroke="#A92B3E" stroke-width="1.5"/>
+                <text x="25" y="-6" fill="#A92B3E" font-size="12" font-weight="bold">θ</text>
+            </svg>`;
+        }
+        return '';
+    }
+
+    // Navigation & Screen Controller
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+        if (window.MathJax) MathJax.typesetPromise();
+    }
+
+    function goToStudentDetails() {
+        showScreen('details-screen');
+    }
+
+    function handleSectionChange() {
+        const val = document.getElementById('student-section-select').value;
+        const customContainer = document.getElementById('others-section-container');
+        const customInput = document.getElementById('student-section-custom');
+        if (val === 'Others') {
+            customContainer.classList.remove('hidden');
+            customInput.required = true;
+        } else {
+            customContainer.classList.add('hidden');
+            customInput.required = false;
+        }
+    }
+
+    function handleDetailsSubmit(e) {
+        e.preventDefault();
+        studentName = document.getElementById('student-name').value.trim();
+        const secSelect = document.getElementById('student-section-select').value;
+        if (secSelect === 'Others') {
+            studentSection = 'Others (' + document.getElementById('student-section-custom').value.trim() + ')';
+        } else {
+            studentSection = secSelect;
+        }
+
+        if (studentName && studentSection) {
+            showScreen('notes-screen');
+        }
+    }
+
+    // Quiz Execution & Timer Mechanics
+    function startQuizFromRefresh() {
+        currentQuestions = [...masterQuestions];
+        currentIndex = 0;
+        score = 0;
+        userAnswers = new Array(currentQuestions.length).fill(null);
+        isAnsweredCurrent = new Array(currentQuestions.length).fill(false);
+        
+        // Active timer starts ONLY when question 1 renders
+        quizStartTime = Date.now();
+        pausedTimeTotal = 0;
+        
+        showScreen('question-screen');
+        renderQuestion();
+    }
+
+    function renderQuestion() {
+        const q = currentQuestions[currentIndex];
+        const currentNum = currentIndex + 1;
+        const total = currentQuestions.length;
+        const pct = Math.round((currentNum / total) * 100);
+
+        document.getElementById('progress-text').innerText = `Question ${currentNum} of ${total}`;
+        document.getElementById('progress-percent').innerText = `${pct}%`;
+        document.getElementById('progress-bar-fill').style.width = `${pct}%`;
+
+        // Back button visibility inside quiz
+        document.getElementById('quiz-back-btn').style.visibility = currentIndex > 0 ? 'visible' : 'hidden';
+
+        document.getElementById('question-text').innerHTML = q.text;
+        const diagramBox = document.getElementById('diagram-container');
+        if (q.hasDiagram) {
+            diagramBox.style.display = 'flex';
+            diagramBox.innerHTML = getDiagramSVG(q.diagramType);
+        } else {
+            diagramBox.style.display = 'none';
+            diagramBox.innerHTML = '';
+        }
+
+        const optionsGrid = document.getElementById('options-grid');
+        optionsGrid.innerHTML = '';
+
+        const answered = isAnsweredCurrent[currentIndex];
+        const prevAnswer = userAnswers[currentIndex];
+
+        q.options.forEach((opt, idx) => {
+            const btn = document.createElement('div');
+            btn.className = 'option-card';
+            if (answered) {
+                btn.classList.add('disabled');
+                if (prevAnswer && prevAnswer.selectedIndex === idx) {
+                    btn.classList.add(opt.correct ? 'correct' : 'incorrect');
+                }
+                if (!opt.correct && q.options[idx].correct && prevAnswer && !prevAnswer.isCorrect) {
+                    btn.classList.add('correct');
+                }
+            } else {
+                btn.onclick = () => selectOption(idx);
+            }
+            btn.innerHTML = `<span>${opt.text}</span>`;
+            optionsGrid.appendChild(btn);
+        });
+
+        const fbBox = document.getElementById('feedback-box');
+        const nextBtn = document.getElementById('next-btn');
+
+        if (answered && prevAnswer) {
+            fbBox.className = `p-4 rounded-xl text-sm leading-relaxed mb-6 animate-fade-in block ${prevAnswer.isCorrect ? 'bg-emerald-50 border-l-4 border-emerald-600 text-emerald-900' : 'bg-rose-50 border-l-4 border-rose-600 text-rose-900'}`;
+            document.getElementById('feedback-title').innerHTML = prevAnswer.isCorrect ? '✓ Correct!' : '✕ Not quite!';
+            document.getElementById('feedback-hint').innerHTML = prevAnswer.explanation;
+            nextBtn.innerHTML = currentIndex === total - 1 ? `View Results &rarr;` : `Next Question &rarr;`;
+            nextBtn.style.display = 'inline-flex';
+        } else {
+            fbBox.className = 'hidden p-4 rounded-xl text-sm leading-relaxed mb-6 animate-fade-in';
+            nextBtn.style.display = 'none';
+        }
+
+        if (window.MathJax) MathJax.typesetPromise();
+    }
+
+    function selectOption(selectedIndex) {
+        if (isAnsweredCurrent[currentIndex]) return;
+        isAnsweredCurrent[currentIndex] = true;
+
+        const q = currentQuestions[currentIndex];
+        const selectedOpt = q.options[selectedIndex];
+
+        userAnswers[currentIndex] = {
+            questionObj: q,
+            selectedIndex: selectedIndex,
+            userChoiceText: selectedOpt.text,
+            correctChoiceText: q.options.find(o => o.correct).text,
+            isCorrect: selectedOpt.correct,
+            explanation: q.explanation
+        };
+
+        if (selectedOpt.correct) {
+            score++;
+        }
+
+        renderQuestion();
+    }
+
+    function prevQuestion() {
+        if (currentIndex > 0) {
+            currentIndex--;
+            renderQuestion();
+        }
+    }
+
+    function nextQuestion() {
+        if (currentIndex < currentQuestions.length - 1) {
+            currentIndex++;
+            renderQuestion();
+        } else {
+            showResults();
+        }
+    }
+
+    // Format Seconds to mm:ss
+    function formatTime(seconds) {
+        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    }
+
+    function showResults() {
+        showScreen('results-screen');
+
+        const totalTimeSeconds = Math.max(1, Math.round((Date.now() - quizStartTime - pausedTimeTotal) / 1000));
+        const formattedDuration = formatTime(totalTimeSeconds);
+        const pct = Math.round((score / currentQuestions.length) * 100);
+
+        document.getElementById('result-student-info').innerText = `${studentName} (${studentSection})`;
+        document.getElementById('score-display').innerText = `${score} / ${currentQuestions.length}`;
+        document.getElementById('score-percentage').innerText = `${pct}% Accuracy • Completed in ${formattedDuration}`;
+
+        const badge = document.getElementById('badge-status');
+        const feedback = document.getElementById('result-feedback');
+
+        if (score >= 7) {
+            badge.innerText = "READY TO EXPLORE 🚀";
+            badge.className = "inline-block px-4 py-1.5 rounded-full font-extrabold text-sm mb-3 bg-emerald-100 text-emerald-800";
+            feedback.innerText = "Excellent foundation! You are ready to explore the Unit Circle.";
+        } else if (score >= 5) {
+            badge.innerText = "ALMOST THERE 👍";
+            badge.className = "inline-block px-4 py-1.5 rounded-full font-extrabold text-sm mb-3 bg-amber-100 text-amber-800";
+            feedback.innerText = "Good foundation. Review a few key ideas before moving on.";
+        } else {
+            badge.innerText = "QUICK REFRESH NEEDED 💡";
+            badge.className = "inline-block px-4 py-1.5 rounded-full font-extrabold text-sm mb-3 bg-rose-100 text-rose-800";
+            feedback.innerText = "Review the reference notes and try again.";
+        }
+
+        // Save Record to Local Attempt History
+        saveAttempt(studentName, studentSection, score, pct, totalTimeSeconds, formattedDuration);
+    }
+
+    function saveAttempt(name, sec, scr, pct, timeSec, timeFmt) {
+        attemptsHistory.push({
+            attemptId: 'att_' + Date.now(),
+            name: name,
+            section: sec,
+            score: scr,
+            percentage: pct,
+            timeSeconds: timeSec,
+            timeFormatted: timeFmt,
+            timestamp: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            responses: userAnswers.map(a => a ? a.isCorrect : false)
+        });
+        localStorage.setItem('trigo_attempts_history', JSON.stringify(attemptsHistory));
+    }
+
+    function toggleReview() {
+        showScreen('review-screen');
+        const container = document.getElementById('review-list-container');
+        container.innerHTML = '';
+
+        userAnswers.forEach((ans, i) => {
+            if (!ans) return;
+            const item = document.createElement('div');
+            item.className = `p-4 rounded-xl border text-xs leading-relaxed ${ans.isCorrect ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : 'bg-rose-50 border-rose-200 text-rose-950'}`;
+            item.innerHTML = `
+                <div class="font-bold mb-1 text-sm">Q${i+1}: ${ans.questionObj.text}</div>
+                <div>Your Answer: <b>${ans.userChoiceText}</b> ${ans.isCorrect ? '✓' : '✕'}</div>
+                ${!ans.isCorrect ? `<div class="text-emerald-800 font-semibold mt-0.5">Correct Answer: <b>${ans.correctChoiceText}</b></div>` : ''}
+                <div class="mt-2 text-slate-700 bg-white/70 p-2 rounded border border-slate-200">💡 <b>Explanation:</b> ${ans.explanation}</div>
+            `;
+            container.appendChild(item);
+        });
+
+        if (window.MathJax) MathJax.typesetPromise();
+    }
+
+    function restartQuiz() {
+        currentQuestions = [...masterQuestions].sort(() => Math.random() - 0.5);
+        currentIndex = 0;
+        score = 0;
+        userAnswers = new Array(currentQuestions.length).fill(null);
+        isAnsweredCurrent = new Array(currentQuestions.length).fill(false);
+        quizStartTime = Date.now();
+        pausedTimeTotal = 0;
+        showScreen('question-screen');
+        renderQuestion();
+    }
+
+    // Modal Reference Controls with Pause Mechanics
+    function openReferenceModal() {
+        modalOpenTime = Date.now();
+        document.getElementById('reference-modal').classList.remove('hidden');
+        if (window.MathJax) MathJax.typesetPromise();
+    }
+
+    function closeReferenceModal() {
+        if (modalOpenTime > 0) {
+            pausedTimeTotal += (Date.now() - modalOpenTime);
+            modalOpenTime = 0;
+        }
+        document.getElementById('reference-modal').classList.add('hidden');
+    }
+
+    // TEACHER ACCESS & DASHBOARD CONTROLS
+    function openTeacherAuthModal() {
+        document.getElementById('teacher-pass-input').value = '';
+        document.getElementById('teacher-auth-error').classList.add('hidden');
+        document.getElementById('teacher-auth-modal').classList.remove('hidden');
+    }
+
+    function closeTeacherAuthModal() {
+        document.getElementById('teacher-auth-modal').classList.add('hidden');
+    }
+
+    function handleTeacherAuthSubmit(e) {
+        e.preventDefault();
+        const inputCode = document.getElementById('teacher-pass-input').value.trim();
+        if (inputCode.toUpperCase() === 'SUHAILA') {
+            isTeacherAuthenticated = true;
+            closeTeacherAuthModal();
+            showTeacherDashboard();
+        } else {
+            document.getElementById('teacher-auth-error').classList.remove('hidden');
+        }
+    }
+
+    function teacherLogout() {
+        isTeacherAuthenticated = false;
+        showScreen('welcome-screen');
+    }
+
+    function showTeacherDashboard() {
+        if (!isTeacherAuthenticated) {
+            openTeacherAuthModal();
+            return;
+        }
+        showScreen('teacher-dashboard-screen');
+        renderTeacherDashboard();
+    }
+
+    // TEACHER DASHBOARD DATA PROCESSING & FILTERING
+    function renderTeacherDashboard() {
+        const selectedSec = document.getElementById('teacher-section-filter').value;
+        const sortMode = document.getElementById('teacher-sort-filter').value;
+
+        // 1. Filter raw attempts by section
+        let filteredAttempts = attemptsHistory.filter(att => {
+            if (selectedSec === 'All Sections') return true;
+            if (selectedSec === 'Others') return att.section.startsWith('Others');
+            return att.section === selectedSec;
+        });
+
+        // 2. Best Attempt Filtering (One entry per unique student name)
+        const bestAttemptsMap = new Map();
+        filteredAttempts.forEach(att => {
+            const key = att.name.toLowerCase().trim();
+            if (!bestAttemptsMap.has(key)) {
+                bestAttemptsMap.set(key, att);
+            } else {
+                const existing = bestAttemptsMap.get(key);
+                if (att.score > existing.score) {
+                    bestAttemptsMap.set(key, att);
+                } else if (att.score === existing.score && att.timeSeconds < existing.timeSeconds) {
+                    bestAttemptsMap.set(key, att);
+                }
+            }
+        });
+
+        let bestAttemptsList = Array.from(bestAttemptsMap.values());
+
+        // 3. Sorting Mechanics
+        bestAttemptsList.sort((a, b) => {
+            if (sortMode === 'DEFAULT') {
+                return (b.score - a.score) || (a.timeSeconds - b.timeSeconds);
+            } else if (sortMode === 'HIGHEST_SCORE') {
+                return b.score - a.score;
+            } else if (sortMode === 'LOWEST_SCORE') {
+                return a.score - b.score;
+            } else if (sortMode === 'FASTEST_TIME') {
+                return a.timeSeconds - b.timeSeconds;
+            } else if (sortMode === 'SLOWEST_TIME') {
+                return b.timeSeconds - a.timeSeconds;
+            } else if (sortMode === 'NAME_AZ') {
+                return a.name.localeCompare(b.name);
+            }
+            return 0;
+        });
+
+        // 4. Update Summary Cards & Fallback for Empty State
+        const totalUnique = bestAttemptsList.length;
+        document.getElementById('td-total-students').innerText = totalUnique;
+
+        if (totalUnique === 0) {
+            document.getElementById('td-mean-score').innerText = "—";
+            document.getElementById('td-mean-pct').innerText = "0% avg";
+            document.getElementById('td-highest-score').innerText = "—";
+            document.getElementById('td-mean-time').innerText = "—";
+            document.getElementById('td-ready-pct').innerText = "0%";
+            
+            document.getElementById('band-ready-count').innerText = "0 students";
+            document.getElementById('band-almost-count').innerText = "0 students";
+            document.getElementById('band-refresh-count').innerText = "0 students";
+            document.getElementById('band-ready-fill').style.width = "0%";
+            document.getElementById('band-almost-fill').style.width = "0%";
+            document.getElementById('band-refresh-fill').style.width = "0%";
+
+            document.getElementById('item-analysis-table-body').innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400 font-medium">No completed student attempts yet.</td></tr>`;
+            document.getElementById('teacher-leaderboard-tbody').innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-400 font-medium">No completed student attempts yet.</td></tr>`;
+            document.getElementById('most-challenging-badge').classList.add('hidden');
+            return;
+        }
+
+        const sumScore = bestAttemptsList.reduce((acc, curr) => acc + curr.score, 0);
+        const meanScore = (sumScore / totalUnique).toFixed(1);
+        const meanPct = Math.round((meanScore / 8) * 100);
+        const maxScore = Math.max(...bestAttemptsList.map(a => a.score));
+        const sumTime = bestAttemptsList.reduce((acc, curr) => acc + curr.timeSeconds, 0);
+        const meanTimeSec = Math.round(sumTime / totalUnique);
+
+        const countReady = bestAttemptsList.filter(a => a.score >= 7).length;
+        const countAlmost = bestAttemptsList.filter(a => a.score >= 5 && a.score <= 6).length;
+        const countRefresh = bestAttemptsList.filter(a => a.score <= 4).length;
+
+        const readyPct = Math.round((countReady / totalUnique) * 100);
+        const almostPct = Math.round((countAlmost / totalUnique) * 100);
+        const refreshPct = Math.round((countRefresh / totalUnique) * 100);
+
+        document.getElementById('td-mean-score').innerText = `${meanScore} / 8`;
+        document.getElementById('td-mean-pct').innerText = `${meanPct}% avg accuracy`;
+        document.getElementById('td-highest-score').innerText = `${maxScore} / 8`;
+        document.getElementById('td-mean-time').innerText = formatTime(meanTimeSec);
+        document.getElementById('td-ready-pct').innerText = `${readyPct}%`;
+
+        document.getElementById('band-ready-count').innerText = `${countReady} (${readyPct}%)`;
+        document.getElementById('band-almost-count').innerText = `${countAlmost} (${almostPct}%)`;
+        document.getElementById('band-refresh-count').innerText = `${countRefresh} (${refreshPct}%)`;
+        document.getElementById('band-ready-fill').style.width = `${readyPct}%`;
+        document.getElementById('band-almost-fill').style.width = `${almostPct}%`;
+        document.getElementById('band-refresh-fill').style.width = `${refreshPct}%`;
+
+        // 5. Item Misconception Analysis
+        const itemBody = document.getElementById('item-analysis-table-body');
+        itemBody.innerHTML = '';
+        
+        let minPassRate = 101;
+        let lowestQIndex = -1;
+
+        const itemStats = masterQuestions.map((q, idx) => {
+            let correctCount = 0;
+            bestAttemptsList.forEach(att => {
+                if (att.responses && att.responses[idx]) {
+                    correctCount++;
+                }
+            });
+            const passPct = Math.round((correctCount / totalUnique) * 100);
+            if (passPct < minPassRate) {
+                minPassRate = passPct;
+                lowestQIndex = idx;
+            }
+            return {
+                qNum: idx + 1,
+                concept: q.type,
+                correct: correctCount,
+                incorrect: totalUnique - correctCount,
+                passPct: passPct
+            };
+        });
+
+        if (lowestQIndex >= 0) {
+            const badge = document.getElementById('most-challenging-badge');
+            badge.innerText = `⚠️ Most Challenging: Q${lowestQIndex + 1} (${minPassRate}% Pass)`;
+            badge.classList.remove('hidden');
+        }
+
+        itemStats.forEach((stat, idx) => {
+            const isLowest = idx === lowestQIndex;
+            const tr = document.createElement('tr');
+            tr.className = isLowest ? 'bg-rose-50 border-b border-rose-200 font-semibold' : (idx % 2 === 0 ? 'bg-slate-50 border-b' : 'bg-white border-b');
+            tr.innerHTML = `
+                <td class="p-2.5 font-bold text-navy">Q${stat.qNum}</td>
+                <td class="p-2.5">${stat.concept}</td>
+                <td class="p-2.5 font-bold text-emerald-700">${stat.correct}</td>
+                <td class="p-2.5 font-bold text-rose-700">${stat.incorrect}</td>
+                <td class="p-2.5 font-bold ${stat.passPct < 60 ? 'text-rose-700' : 'text-emerald-700'}">${stat.passPct}%</td>
+                <td class="p-2.5 font-bold">${isLowest ? '<span class="text-rose-700">⚠️ Flagged Misconception</span>' : '<span class="text-slate-400">Normal</span>'}</td>
+            `;
+            itemBody.appendChild(tr);
+        });
+
+        // 6. Leaderboard Table View
+        const lbBody = document.getElementById('teacher-leaderboard-tbody');
+        lbBody.innerHTML = '';
+
+        bestAttemptsList.forEach((item, index) => {
+            let rankSymbol = index + 1;
+            if (index === 0) rankSymbol = "🥇 1";
+            else if (index === 1) rankSymbol = "🥈 2";
+            else if (index === 2) rankSymbol = "🥉 3";
+
+            const row = document.createElement('tr');
+            row.className = index % 2 === 0 ? 'bg-slate-50 border-b' : 'bg-white border-b';
+            row.innerHTML = `
+                <td class="p-3 font-bold">${rankSymbol}</td>
+                <td class="p-3 font-semibold text-navy">${item.name}</td>
+                <td class="p-3"><span class="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-[11px] font-bold">${item.section}</span></td>
+                <td class="p-3 font-bold text-emerald-700">${item.score}/8</td>
+                <td class="p-3 font-bold">${item.score}</td>
+                <td class="p-3 font-bold text-crimson">${item.percentage}%</td>
+                <td class="p-3 font-mono font-bold text-slate-700">${item.timeFormatted}</td>
+            `;
+            lbBody.appendChild(row);
+        });
+    }
+
+    function openClearModal() {
+        const selectedSec = document.getElementById('teacher-section-filter').value;
+        document.getElementById('clear-target-section-name').innerText = selectedSec;
+        document.getElementById('clear-leaderboard-modal').classList.remove('hidden');
+    }
+
+    function closeClearModal() {
+        document.getElementById('clear-leaderboard-modal').classList.add('hidden');
+    }
+
+    function executeClearLeaderboard() {
+        const selectedScope = document.querySelector('input[name="clear-scope"]:checked').value;
+        const selectedSec = document.getElementById('teacher-section-filter').value;
+
+        if (selectedScope === 'ALL' || selectedSec === 'All Sections') {
+            attemptsHistory = [];
+        } else {
+            attemptsHistory = attemptsHistory.filter(att => {
+                if (selectedSec === 'Others') {
+                    return !att.section.startsWith('Others');
+                }
+                return att.section !== selectedSec;
+            });
+        }
+
+        localStorage.setItem('trigo_attempts_history', JSON.stringify(attemptsHistory));
+        closeClearModal();
+        renderTeacherDashboard();
+    }
+</script>
+</body>
+</html>
