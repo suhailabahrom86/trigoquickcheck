@@ -34,166 +34,143 @@
         };
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
-
     <script type="module">
-        import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-        import { 
-            getFirestore,
-            collection, 
-            addDoc, 
-            onSnapshot, 
-            serverTimestamp, 
-            deleteDoc, 
-            doc, 
-            getDocs 
+        import { db } from "./firebase-config.js";
+        import {
+            collection,
+            addDoc,
+            onSnapshot,
+            serverTimestamp,
+            deleteDoc,
+            doc,
+            getDocs
         } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
-        const COLLECTION_NAME = 'quizResults';
+        const COLLECTION_NAME = "quizResults";
+
         window.isCloudConnected = false;
         window.attemptsHistory = [];
 
-        let db = null;
-
-        // Graceful dynamic import handling to avoid static module specifier failure in iframe/preview environments
-        try {
-            const configMod = await import("./firebase-config.js");
-            db = configMod.db;
-        } catch (err) {
-            console.warn("Relative './firebase-config.js' specifier could not be resolved in this preview environment. Operating with fallback memory state.", err.message);
-            if (window.firebaseConfig) {
-                try {
-                    const app = getApps().length === 0 ? initializeApp(window.firebaseConfig) : getApps()[0];
-                    db = getFirestore(app);
-                } catch (e) {
-                    console.warn("Failed to initialize Firebase from window.firebaseConfig:", e.message);
-                }
-            }
-        }
-
         function parseTimeToSeconds(timeStr) {
-            if (!timeStr || typeof timeStr !== 'string') return 0;
-            const parts = timeStr.split(':');
+            if (!timeStr || typeof timeStr !== "string") return 0;
+            const parts = timeStr.split(":");
             if (parts.length === 2) {
                 return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
             }
             return parseInt(timeStr, 10) || 0;
         }
 
-        if (db) {
-            try {
-                const quizColRef = collection(db, COLLECTION_NAME);
+        // A real-time Firestore listener is the ONLY source for the official leaderboard.
+        const quizColRef = collection(db, COLLECTION_NAME);
 
-                // Real-time synchronization listener across devices
-                onSnapshot(quizColRef, (snapshot) => {
-                    const cloudRecords = [];
-                    snapshot.forEach((docSnap) => {
-                        const data = docSnap.data();
-                        cloudRecords.push({
-                            docId: docSnap.id,
-                            studentName: data.studentName || data.name || 'Anonymous',
-                            name: data.studentName || data.name || 'Anonymous',
-                            section: data.section || 'N/A',
-                            score: typeof data.score === 'number' ? data.score : 0,
-                            percentage: typeof data.percentage === 'number' ? data.percentage : Math.round(((data.score || 0) / 8) * 100),
-                            timeSeconds: typeof data.timeSeconds === 'number' ? data.timeSeconds : parseTimeToSeconds(data.completionTime || data.timeFormatted),
-                            completionTime: data.completionTime || data.timeFormatted || '00:00',
-                            timeFormatted: data.completionTime || data.timeFormatted || '00:00',
-                            answers: Array.isArray(data.answers) ? data.answers : [],
-                            responses: Array.isArray(data.answers) ? data.answers : (Array.isArray(data.responses) ? data.responses : []),
-                            submittedAt: data.submittedAt || ''
-                        });
+        onSnapshot(
+            quizColRef,
+            (snapshot) => {
+                const cloudRecords = [];
+
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+
+                    cloudRecords.push({
+                        docId: docSnap.id,
+                        studentName: data.studentName || data.name || "Anonymous",
+                        name: data.studentName || data.name || "Anonymous",
+                        section: data.section || "N/A",
+                        score: Number.isFinite(data.score) ? data.score : Number(data.score) || 0,
+                        percentage: Number.isFinite(data.percentage)
+                            ? data.percentage
+                            : Math.round(((Number(data.score) || 0) / 8) * 100),
+                        timeSeconds: Number.isFinite(data.timeSeconds)
+                            ? data.timeSeconds
+                            : parseTimeToSeconds(data.completionTime || data.timeFormatted),
+                        completionTime: data.completionTime || data.timeFormatted || "00:00",
+                        timeFormatted: data.completionTime || data.timeFormatted || "00:00",
+                        answers: Array.isArray(data.answers) ? data.answers : [],
+                        responses: Array.isArray(data.answers)
+                            ? data.answers
+                            : (Array.isArray(data.responses) ? data.responses : []),
+                        submittedAt: data.submittedAt || null
                     });
-                    
-                    window.attemptsHistory = cloudRecords;
-                    window.isCloudConnected = true;
-                    console.log("Firestore real-time sync active. Loaded " + cloudRecords.length + " records.");
-
-                    if (window.isTeacherAuthenticated && document.getElementById('teacher-dashboard-screen')?.classList.contains('active')) {
-                        if (typeof window.renderTeacherDashboard === 'function') {
-                            window.renderTeacherDashboard();
-                        }
-                    }
-                }, (error) => {
-                    console.error("Firestore real-time listener error:", error.message);
                 });
 
-            } catch (err) {
-                console.error("Error setting up Firestore listener:", err.message);
-            }
-        } else {
-            console.warn("db instance not exported from firebase-config.js. Running local memory fallback.");
-        }
+                window.attemptsHistory = cloudRecords;
+                window.isCloudConnected = true;
 
-        window.saveAttemptToCloud = async function(record) {
-            if (db) {
-                try {
-                    const quizColRef = collection(db, COLLECTION_NAME);
-                    const docRef = await addDoc(quizColRef, {
-                        studentName: record.studentName || record.name || 'Anonymous',
-                        section: record.section || 'N/A',
-                        score: record.score,
-                        totalQuestions: 8,
-                        percentage: record.percentage,
-                        completionTime: record.completionTime || record.timeFormatted || '00:00',
-                        timeSeconds: record.timeSeconds || 0,
-                        answers: record.answers || [],
-                        submittedAt: serverTimestamp()
-                    });
-                    record.docId = docRef.id;
-                    console.log("Firestore submission successful. Doc ID:", docRef.id);
-                } catch (e) {
-                    console.error("Firestore submission failed:", e.message);
-                    window.showToastNotification("Submission saved locally (cloud sync error).");
-                    window.attemptsHistory.push(record);
+                console.log(
+                    `[TRIGO QUICK CHECK] Firestore connected. ${cloudRecords.length} cloud record(s) loaded.`
+                );
+
+                if (
+                    window.isTeacherAuthenticated &&
+                    document.getElementById("teacher-dashboard-screen")?.classList.contains("active") &&
+                    typeof window.renderTeacherDashboard === "function"
+                ) {
+                    window.renderTeacherDashboard();
                 }
-            } else {
-                console.log("Saved attempt to local memory.");
-                window.attemptsHistory.push(record);
+            },
+            (error) => {
+                window.isCloudConnected = false;
+                console.error("[TRIGO QUICK CHECK] Firestore listener failed:", error);
+
+                if (typeof window.showToastNotification === "function") {
+                    window.showToastNotification(
+                        "Cloud leaderboard connection failed. Please refresh and check Firebase."
+                    );
+                }
             }
+        );
+
+        window.saveAttemptToCloud = async function (record) {
+            const payload = {
+                studentName: record.studentName || record.name || "Anonymous",
+                section: record.section || "N/A",
+                score: Number(record.score) || 0,
+                totalQuestions: 8,
+                percentage: Number(record.percentage) || 0,
+                completionTime: record.completionTime || record.timeFormatted || "00:00",
+                timeSeconds: Number(record.timeSeconds) || 0,
+                answers: Array.isArray(record.answers) ? record.answers : [],
+                submittedAt: serverTimestamp()
+            };
+
+            const docRef = await addDoc(collection(db, COLLECTION_NAME), payload);
+            console.log("[TRIGO QUICK CHECK] Firestore submission successful:", docRef.id);
+            return docRef.id;
         };
 
-        window.clearAttemptsFromCloud = async function(scope, selectedSec) {
-            if (db) {
-                try {
-                    const quizColRef = collection(db, COLLECTION_NAME);
-                    const snapshot = await getDocs(quizColRef);
-                    const deletePromises = [];
+        window.clearAttemptsFromCloud = async function (scope, selectedSec) {
+            try {
+                const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+                const deletePromises = [];
 
-                    snapshot.forEach((docSnap) => {
-                        const data = docSnap.data();
-                        const secVal = data.section || '';
-                        let deleteThis = false;
-                        if (scope === 'ALL' || selectedSec === 'All Sections') {
-                            deleteThis = true;
-                        } else if (selectedSec === 'Others') {
-                            if (secVal.startsWith('Others')) deleteThis = true;
-                        } else {
-                            if (secVal === selectedSec) deleteThis = true;
-                        }
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const secVal = data.section || "";
+                    let deleteThis = false;
 
-                        if (deleteThis) {
-                            deletePromises.push(deleteDoc(doc(db, COLLECTION_NAME, docSnap.id)));
-                        }
-                    });
-
-                    await Promise.all(deletePromises);
-                    console.log("Cleared matching records from Cloud Firestore.");
-                } catch (e) {
-                    console.error("Cloud clear failed:", e.message);
-                    window.showToastNotification("Cloud delete error: " + e.message);
-                }
-            }
-
-            // Local state cleanup
-            if (scope === 'ALL' || selectedSec === 'All Sections') {
-                window.attemptsHistory = [];
-            } else {
-                window.attemptsHistory = window.attemptsHistory.filter(att => {
-                    if (selectedSec === 'Others') {
-                        return !(att.section || '').startsWith('Others');
+                    if (scope === "ALL" || selectedSec === "All Sections") {
+                        deleteThis = true;
+                    } else if (selectedSec === "Others") {
+                        deleteThis = secVal.startsWith("Others");
+                    } else {
+                        deleteThis = secVal === selectedSec;
                     }
-                    return att.section !== selectedSec;
+
+                    if (deleteThis) {
+                        deletePromises.push(deleteDoc(doc(db, COLLECTION_NAME, docSnap.id)));
+                    }
                 });
+
+                await Promise.all(deletePromises);
+                console.log("[TRIGO QUICK CHECK] Matching Firestore records deleted.");
+            } catch (error) {
+                console.error("[TRIGO QUICK CHECK] Cloud delete failed:", error);
+                if (typeof window.showToastNotification === "function") {
+                    window.showToastNotification(
+                        "Cloud delete blocked/failed. Check Firestore Security Rules."
+                    );
+                }
+                throw error;
             }
         };
     </script>
@@ -1253,14 +1230,15 @@
         return `${m}:${s}`;
     };
 
-    window.finishQuiz = function() {
+    window.finishQuiz = async function() {
         if (window.quizTimerInterval) clearInterval(window.quizTimerInterval);
 
         const totalSec = window.elapsedSeconds;
         const timeFmt = window.formatTime(totalSec);
         const finalPct = Math.round((window.score / 8) * 100);
 
-        document.getElementById('result-student-info').innerText = `${window.studentName || 'Student'} (${window.studentSection || 'N/A'}) • Time: ${timeFmt}`;
+        document.getElementById('result-student-info').innerText =
+            `${window.studentName || 'Student'} (${window.studentSection || 'N/A'}) • Time: ${timeFmt}`;
         document.getElementById('score-display').innerText = `${window.score} / 8`;
         document.getElementById('score-percentage').innerText = `${finalPct}% Accuracy`;
 
@@ -1281,20 +1259,31 @@
             feedback.innerText = "Review the quick reference notes and try again to sharpen your prerequisite skills.";
         }
 
-        // Save Attempt to Cloud Firestore
-        if (typeof window.saveAttemptToCloud === 'function') {
-            window.saveAttemptToCloud({
-                studentName: window.studentName || 'Anonymous',
-                name: window.studentName || 'Anonymous',
-                section: window.studentSection || 'N/A',
-                score: window.score,
-                totalQuestions: 8,
-                percentage: finalPct,
-                timeSeconds: totalSec,
-                completionTime: timeFmt,
-                timeFormatted: timeFmt,
-                answers: window.userAnswers.map(a => a ? a.isCorrect : false)
-            });
+        const attemptRecord = {
+            studentName: window.studentName || 'Anonymous',
+            name: window.studentName || 'Anonymous',
+            section: window.studentSection || 'N/A',
+            score: window.score,
+            totalQuestions: 8,
+            percentage: finalPct,
+            timeSeconds: totalSec,
+            completionTime: timeFmt,
+            timeFormatted: timeFmt,
+            answers: window.userAnswers.map(a => a ? a.isCorrect : false)
+        };
+
+        try {
+            if (typeof window.saveAttemptToCloud !== 'function') {
+                throw new Error("Firestore save function is unavailable.");
+            }
+
+            await window.saveAttemptToCloud(attemptRecord);
+            window.showToastNotification("Result synced to the cloud leaderboard ✓");
+        } catch (error) {
+            console.error("[TRIGO QUICK CHECK] Result was NOT synced:", error);
+            window.showToastNotification(
+                "Result NOT synced. Check internet/Firebase connection before closing this page."
+            );
         }
 
         window.showScreen('results-screen');
