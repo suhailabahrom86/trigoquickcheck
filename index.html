@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TRIGO QUICK CHECK | Warm-Up Quiz & Shared Leaderboard</title>
+    
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -21,7 +22,8 @@
             }
         }
     </script>
-    <!-- MathJax setup for standard math rendering -->
+
+    <!-- MathJax for rendering professional mathematical typography -->
     <script>
         window.MathJax = {
             tex: {
@@ -33,99 +35,127 @@
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 
-    <!-- Firebase Firestore Cloud Synchronization Script -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, collection, addDoc, deleteDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+        import { 
+            getFirestore,
+            collection, 
+            addDoc, 
+            onSnapshot, 
+            serverTimestamp, 
+            deleteDoc, 
+            doc, 
+            getDocs 
+        } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+        const COLLECTION_NAME = 'quizResults';
+        window.isCloudConnected = false;
+        window.attemptsHistory = [];
 
         let db = null;
-        let auth = null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'trigo-quick-check-app';
-        const COLLECTION_NAME = 'quizResults';
 
-        async function initCloudSync() {
-            if (typeof __firebase_config === 'undefined' || !__firebase_config) {
-                console.log("Firebase config unavailable; using local memory storage.");
-                return;
-            }
-
-            try {
-                const firebaseConfig = JSON.parse(__firebase_config);
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-
-                // Rule 3: Authenticate prior to any database queries
-                let user = null;
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    const cred = await signInWithCustomToken(auth, __initial_auth_token);
-                    user = cred.user;
-                } else {
-                    const cred = await signInAnonymously(auth);
-                    user = cred.user;
+        // Graceful dynamic import handling to avoid static module specifier failure in iframe/preview environments
+        try {
+            const configMod = await import("./firebase-config.js");
+            db = configMod.db;
+        } catch (err) {
+            console.warn("Relative './firebase-config.js' specifier could not be resolved in this preview environment. Operating with fallback memory state.", err.message);
+            if (window.firebaseConfig) {
+                try {
+                    const app = getApps().length === 0 ? initializeApp(window.firebaseConfig) : getApps()[0];
+                    db = getFirestore(app);
+                } catch (e) {
+                    console.warn("Failed to initialize Firebase from window.firebaseConfig:", e.message);
                 }
+            }
+        }
 
-                if (!user) return;
+        function parseTimeToSeconds(timeStr) {
+            if (!timeStr || typeof timeStr !== 'string') return 0;
+            const parts = timeStr.split(':');
+            if (parts.length === 2) {
+                return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
+            }
+            return parseInt(timeStr, 10) || 0;
+        }
 
-                // Rule 1: Public shared data collection path
-                const quizColRef = collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME);
+        if (db) {
+            try {
+                const quizColRef = collection(db, COLLECTION_NAME);
 
-                // Real-time synchronization listener across all devices
+                // Real-time synchronization listener across devices
                 onSnapshot(quizColRef, (snapshot) => {
                     const cloudRecords = [];
                     snapshot.forEach((docSnap) => {
                         const data = docSnap.data();
                         cloudRecords.push({
                             docId: docSnap.id,
+                            studentName: data.studentName || data.name || 'Anonymous',
                             name: data.studentName || data.name || 'Anonymous',
                             section: data.section || 'N/A',
                             score: typeof data.score === 'number' ? data.score : 0,
                             percentage: typeof data.percentage === 'number' ? data.percentage : Math.round(((data.score || 0) / 8) * 100),
-                            timeSeconds: typeof data.timeSeconds === 'number' ? data.timeSeconds : 0,
+                            timeSeconds: typeof data.timeSeconds === 'number' ? data.timeSeconds : parseTimeToSeconds(data.completionTime || data.timeFormatted),
+                            completionTime: data.completionTime || data.timeFormatted || '00:00',
                             timeFormatted: data.completionTime || data.timeFormatted || '00:00',
+                            answers: Array.isArray(data.answers) ? data.answers : [],
                             responses: Array.isArray(data.answers) ? data.answers : (Array.isArray(data.responses) ? data.responses : []),
                             submittedAt: data.submittedAt || ''
                         });
                     });
                     
                     window.attemptsHistory = cloudRecords;
-                    localStorage.setItem('trigo_attempts_history', JSON.stringify(cloudRecords));
+                    window.isCloudConnected = true;
+                    console.log("Firestore real-time sync active. Loaded " + cloudRecords.length + " records.");
 
-                    // Update UI if teacher dashboard is active
                     if (window.isTeacherAuthenticated && document.getElementById('teacher-dashboard-screen')?.classList.contains('active')) {
-                        window.renderTeacherDashboard();
+                        if (typeof window.renderTeacherDashboard === 'function') {
+                            window.renderTeacherDashboard();
+                        }
                     }
                 }, (error) => {
-                    console.error("Firestore real-time sync error:", error);
+                    console.error("Firestore real-time listener error:", error.message);
                 });
 
-                window.cloudDb = db;
-                window.cloudColRef = quizColRef;
-
             } catch (err) {
-                console.error("Error initializing Firebase Firestore sync:", err);
+                console.error("Error setting up Firestore listener:", err.message);
             }
+        } else {
+            console.warn("db instance not exported from firebase-config.js. Running local memory fallback.");
         }
 
         window.saveAttemptToCloud = async function(record) {
-            if (db && auth?.currentUser) {
+            if (db) {
                 try {
-                    const quizColRef = collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME);
-                    const docRef = await addDoc(quizColRef, record);
+                    const quizColRef = collection(db, COLLECTION_NAME);
+                    const docRef = await addDoc(quizColRef, {
+                        studentName: record.studentName || record.name || 'Anonymous',
+                        section: record.section || 'N/A',
+                        score: record.score,
+                        totalQuestions: 8,
+                        percentage: record.percentage,
+                        completionTime: record.completionTime || record.timeFormatted || '00:00',
+                        timeSeconds: record.timeSeconds || 0,
+                        answers: record.answers || [],
+                        submittedAt: serverTimestamp()
+                    });
                     record.docId = docRef.id;
-                    console.log("Successfully saved attempt to Cloud Firestore ID:", docRef.id);
+                    console.log("Firestore submission successful. Doc ID:", docRef.id);
                 } catch (e) {
-                    console.error("Failed to write quiz result to Firestore:", e);
-                    alert("Network warning: Quiz saved locally, but cloud sync encountered an issue.");
+                    console.error("Firestore submission failed:", e.message);
+                    window.showToastNotification("Submission saved locally (cloud sync error).");
+                    window.attemptsHistory.push(record);
                 }
+            } else {
+                console.log("Saved attempt to local memory.");
+                window.attemptsHistory.push(record);
             }
         };
 
         window.clearAttemptsFromCloud = async function(scope, selectedSec) {
-            if (db && auth?.currentUser) {
+            if (db) {
                 try {
-                    const quizColRef = collection(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME);
+                    const quizColRef = collection(db, COLLECTION_NAME);
                     const snapshot = await getDocs(quizColRef);
                     const deletePromises = [];
 
@@ -142,19 +172,30 @@
                         }
 
                         if (deleteThis) {
-                            deletePromises.push(deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', COLLECTION_NAME, docSnap.id)));
+                            deletePromises.push(deleteDoc(doc(db, COLLECTION_NAME, docSnap.id)));
                         }
                     });
 
                     await Promise.all(deletePromises);
-                    console.log("Successfully cleared matching records from Cloud Firestore.");
+                    console.log("Cleared matching records from Cloud Firestore.");
                 } catch (e) {
-                    console.error("Failed to delete records from Firestore:", e);
+                    console.error("Cloud clear failed:", e.message);
+                    window.showToastNotification("Cloud delete error: " + e.message);
                 }
             }
-        };
 
-        initCloudSync();
+            // Local state cleanup
+            if (scope === 'ALL' || selectedSec === 'All Sections') {
+                window.attemptsHistory = [];
+            } else {
+                window.attemptsHistory = window.attemptsHistory.filter(att => {
+                    if (selectedSec === 'Others') {
+                        return !(att.section || '').startsWith('Others');
+                    }
+                    return att.section !== selectedSec;
+                });
+            }
+        };
     </script>
 
     <style>
@@ -238,12 +279,11 @@
 <body class="min-h-screen flex items-center justify-center p-3 md:p-6">
 
 <div class="w-full max-w-4xl bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden relative my-4">
-    <!-- Accent Color Bar -->
+    <!-- Header Color Accent Bar -->
     <div class="h-2.5 bg-gradient-to-r from-navy via-crimson to-redAccent"></div>
 
     <div class="p-5 md:p-8">
 
-        <!-- 1. WELCOME SCREEN -->
         <div id="welcome-screen" class="screen active text-center py-4">
             <span class="inline-block px-3.5 py-1 bg-navy/10 text-navy text-xs font-bold rounded-full mb-3 uppercase tracking-wider">
                 Prerequisite Assessment • Lesson 5.1
@@ -274,7 +314,6 @@
             </p>
         </div>
 
-        <!-- 2. STUDENT DETAILS SCREEN -->
         <div id="details-screen" class="screen max-w-md mx-auto py-4">
             <div class="flex items-center justify-between mb-6">
                 <button onclick="showScreen('welcome-screen')" class="text-xs font-bold text-navy hover:text-crimson flex items-center gap-1">
@@ -316,7 +355,6 @@
             </form>
         </div>
 
-        <!-- 3. QUICK REFERENCE NOTES SCREEN -->
         <div id="notes-screen" class="screen">
             <div class="flex items-center justify-between border-b border-slate-200 pb-4 mb-6">
                 <button onclick="showScreen('details-screen')" class="text-xs font-bold text-navy hover:text-crimson flex items-center gap-1">
@@ -477,7 +515,6 @@
             </div>
         </div>
 
-        <!-- 4. INTERACTIVE QUIZ SCREEN -->
         <div id="question-screen" class="screen">
             <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
                 <div class="flex items-center gap-3">
@@ -515,7 +552,6 @@
             </div>
         </div>
 
-        <!-- 5. STUDENT RESULTS SCREEN -->
         <div id="results-screen" class="screen text-center py-4">
             <div class="bg-slate-50 border border-slate-200 rounded-2xl p-6 mb-6">
                 <div class="text-xs font-bold text-crimson uppercase tracking-wider mb-1">YOUR TRIGO READINESS SCORE</div>
@@ -545,7 +581,6 @@
             </div>
         </div>
 
-        <!-- 6. REVIEW ANSWERS SCREEN -->
         <div id="review-screen" class="screen">
             <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
                 <button onclick="showScreen('results-screen')" class="text-xs font-bold text-navy hover:text-crimson">
@@ -556,7 +591,6 @@
             <div id="review-list-container" class="space-y-4 max-h-[60vh] overflow-y-auto pr-2"></div>
         </div>
 
-        <!-- 7. TEACHER DASHBOARD & LEADERBOARD SCREEN -->
         <div id="teacher-dashboard-screen" class="screen">
             <div class="flex flex-wrap items-center justify-between border-b border-slate-200 pb-3 mb-4 gap-2">
                 <div>
@@ -665,7 +699,7 @@
                 </div>
             </div>
 
-            <!-- 1. OFFICIAL STUDENT LEADERBOARD -->
+            <!-- 1. OFFICIAL STUDENT LEADERBOARD (Appears FIRST after Summary Cards) -->
             <div class="mb-6">
                 <h3 class="font-extrabold text-navy text-sm uppercase mb-1">🏆 Official Student Leaderboard (Best Attempt)</h3>
                 <p class="text-xs text-slate-500 mb-3">Ranked by Score (Highest First), then Completion Time (Fastest First).</p>
@@ -719,7 +753,6 @@
     </div>
 </div>
 
-<!-- MODAL 1: TEACHER ACCESS AUTHENTICATION -->
 <div id="teacher-auth-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative animate-fade-in">
         <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
@@ -745,10 +778,6 @@
                 Incorrect access code. Teacher access only.
             </div>
 
-            <p class="text-[11px] text-slate-400 italic">
-                Note: This access code provides client-side interface access control for this standalone activity.
-            </p>
-
             <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button type="button" onclick="closeTeacherAuthModal()" class="bg-slate-200 hover:bg-slate-300 text-darkBrown font-bold px-4 py-2.5 rounded-xl text-xs transition-all">
                     CANCEL
@@ -761,7 +790,6 @@
     </div>
 </div>
 
-<!-- MODAL 2: QUICK REFERENCE MODAL (IN-QUIZ) -->
 <div id="reference-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-6 hidden">
     <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden relative animate-fade-in">
         <div class="flex items-center justify-between bg-slate-100 p-4 border-b border-slate-200">
@@ -800,7 +828,6 @@
     </div>
 </div>
 
-<!-- MODAL 3: CLEAR LEADERBOARD CONFIRMATION -->
 <div id="clear-leaderboard-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative animate-fade-in">
         <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
@@ -845,12 +872,15 @@
     </div>
 </div>
 
+<div id="toast-notification" class="fixed bottom-4 right-4 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold hidden transition-all z-50 border border-slate-700"></div>
+
 <script>
+    // Master Questions Dataset
     const masterQuestions = [
         {
             id: 1,
-            type: "Quadrant Identification",
-            text: "Identify the quadrant containing the terminal side of angle $\\theta$ shown in the diagram:",
+            concept: "Quadrant Identification",
+            text: "Identify the quadrant containing the terminal side of angle $\\theta$ shown below:",
             hasDiagram: true,
             diagramType: "quadrant_quad3",
             options: [
@@ -859,25 +889,24 @@
                 { text: "Quadrant III", correct: true },
                 { text: "Quadrant IV", correct: false }
             ],
-            explanation: "The terminal ray lies in the bottom-left region where $x < 0$ and $y < 0$, which corresponds to Quadrant III."
+            hint: "In Quadrant III, both $x$ and $y$ coordinates are negative (bottom-left region)."
         },
         {
             id: 2,
-            type: "Angle Rotation Direction",
-            text: "If an angle $\\theta$ is generated by a <b>clockwise</b> rotation from the initial side (as shown), what type of angle is it?",
-            hasDiagram: true,
-            diagramType: "rotation_negative",
+            concept: "Angle Rotation",
+            text: "By standard mathematical convention, a <b>positive angle ($+\\theta$)</b> is generated by rotation in which direction from the initial side?",
+            hasDiagram: false,
             options: [
-                { text: "Positive angle", correct: false },
-                { text: "Negative angle", correct: true },
-                { text: "Quadrantal angle", correct: false },
-                { text: "Right angle", correct: false }
+                { text: "Clockwise (↻)", correct: false },
+                { text: "Anti-clockwise (↺)", correct: true },
+                { text: "Downward vertically", correct: false },
+                { text: "Rightward horizontally", correct: false }
             ],
-            explanation: "By mathematical convention, clockwise rotation from the initial side generates a negative angle ($-\\theta$), whereas anti-clockwise rotation generates a positive angle ($+\\theta$)."
+            hint: "Standard angle convention: Anti-clockwise ↺ produces positive angles ($+\\theta$), while Clockwise ↻ produces negative angles ($-\\theta$)."
         },
         {
             id: 3,
-            type: "Sign of Trigonometric Function",
+            concept: "Signs of Functions",
             text: "If angle $\\theta$ lies in <b>Quadrant III</b>, what is the algebraic sign of $\\sin \\theta$?",
             hasDiagram: false,
             options: [
@@ -886,11 +915,11 @@
                 { text: "Zero", correct: false },
                 { text: "Undefined", correct: false }
             ],
-            explanation: "In Quadrant III, vertical displacement $y < 0$. Since $\\sin \\theta$ corresponds to $y$, $\\sin \\theta$ is negative. (ASTC rule: only $\\tan$ and $\\cot$ are positive in Q III)."
+            hint: "In Quadrant III, vertical displacement $y < 0$. Since $\\sin \\theta = y$, sine is negative."
         },
         {
             id: 4,
-            type: "Positive Functions (ASTC)",
+            concept: "Positive Functions by Quadrant",
             text: "Which trigonometric function(s) are <b>positive</b> in <b>Quadrant II</b>?",
             hasDiagram: false,
             options: [
@@ -899,12 +928,12 @@
                 { text: "Tangent and Cotangent only", correct: false },
                 { text: "All trigonometric functions", correct: false }
             ],
-            explanation: "According to the ASTC rule ('All Students Take Calculus'), Quadrant II has $y > 0$ and $x < 0$, so only Sine and its reciprocal Cosecant ($\csc \\theta = \\frac{1}{\\sin \\theta}$) are positive."
+            hint: "Remember the <b>ASTC</b> rule: In Quadrant II (Sin), only Sine and its reciprocal Cosecant ($\csc \\theta$) are positive."
         },
         {
             id: 5,
-            type: "30°-60°-90° Special Triangle",
-            text: "Using the $30^\\circ$-$60^\\circ$-$90^\\circ$ right triangle shown, what is the exact value of $\\sin 30^\\circ$?",
+            concept: "30°–60°–90° Triangle",
+            text: "Using the $30^\\circ$-$60^\\circ$-$90^\\circ$ triangle shown, what is the exact value of $\\sin 30^\\circ$?",
             hasDiagram: true,
             diagramType: "triangle_30_60",
             options: [
@@ -913,12 +942,12 @@
                 { text: "$\\frac{1}{\\sqrt{3}}$", correct: false },
                 { text: "$\\sqrt{3}$", correct: false }
             ],
-            explanation: "$\\sin \\theta = \\frac{\\text{Opposite}}{\\text{Hypotenuse}}$. For $30^\\circ$, the side opposite is $1$ (the base) and hypotenuse is $2$, so $\\sin 30^\\circ = \\frac{1}{2}$."
+            hint: "$\\sin \\theta = \\frac{\\text{Opposite}}{\\text{Hypotenuse}}$. For $30^\\circ$, opposite side = $1$ and hypotenuse = $2$."
         },
         {
             id: 6,
-            type: "45°-45°-90° Special Triangle",
-            text: "Using the $45^\\circ$-$45^\\circ$-$90^\\circ$ right triangle shown, determine the exact value of $\\cos 45^\\circ$:",
+            concept: "45°–45°–90° Triangle",
+            text: "Using the $45^\\circ$-$45^\\circ$-$90^\\circ$ triangle shown, determine the exact value of $\\cos 45^\\circ$:",
             hasDiagram: true,
             diagramType: "triangle_45_45",
             options: [
@@ -927,11 +956,11 @@
                 { text: "$\\sqrt{2}$", correct: false },
                 { text: "$1$", correct: false }
             ],
-            explanation: "$\\cos 45^\\circ = \\frac{\\text{Adjacent}}{\\text{Hypotenuse}} = \\frac{1}{\\sqrt{2}}$, which rationalizes to $\\frac{\\sqrt{2}}{2}$."
+            hint: "$\\cos 45^\\circ = \\frac{\\text{Adjacent}}{\\text{Hypotenuse}} = \\frac{1}{\\sqrt{2}}$, which rationalizes to $\\frac{\\sqrt{2}}{2}$."
         },
         {
             id: 7,
-            type: "Fundamental Identity",
+            concept: "Fundamental Identity",
             text: "Which identity correctly defines $\\tan \\theta$ in terms of $\\sin \\theta$ and $\\cos \\theta$?",
             hasDiagram: false,
             options: [
@@ -940,12 +969,12 @@
                 { text: "$\\tan \\theta = \\sin \\theta \\cdot \\cos \\theta$", correct: false },
                 { text: "$\\tan \\theta = \\frac{1}{\\cos \\theta}$", correct: false }
             ],
-            explanation: "The quotient identity states that tangent is the ratio of Sine divided by Cosine: $\\tan \\theta = \\frac{\\sin \\theta}{\\cos \\theta}$."
+            hint: "The quotient identity states that tangent is Sine divided by Cosine: $\\tan \\theta = \\frac{\\sin \\theta}{\\cos \\theta}$."
         },
         {
             id: 8,
-            type: "Bridge to Today's Lesson",
-            text: "For a point $P(x,y)$ corresponding to an angle $\\theta$, which coordinates define $\\cos \\theta$ and $\\sin \\theta$?",
+            concept: "Unit Circle Bridge",
+            text: "For a point $P(x,y)$ on a plane corresponding to angle $\\theta$, which coordinates correspond to $\\cos \\theta$ and $\\sin \\theta$?",
             hasDiagram: true,
             diagramType: "unit_circle_intro",
             options: [
@@ -954,156 +983,167 @@
                 { text: "$x = \\tan \\theta, \\quad y = \\sin \\theta$", correct: false },
                 { text: "$x = \\cos \\theta, \\quad y = 1$", correct: false }
             ],
-            explanation: "Horizontal displacement corresponds to $x = \\cos \\theta$ and vertical displacement corresponds to $y = \\sin \\theta$. This forms the core bridge to the Unit Circle Approach."
+            hint: "Horizontal displacement corresponds to $x = \\cos \\theta$, and vertical displacement corresponds to $y = \\sin \\theta$."
         }
     ];
 
-    // State Variables
-    let studentName = "";
-    let studentSection = "";
-    let currentQuestions = [];
-    let currentIndex = 0;
-    let score = 0;
-    let userAnswers = [];
-    let isAnsweredCurrent = [];
-    
-    // Timer Mechanics
-    let quizStartTime = 0;
-    let pausedTimeTotal = 0;
-    let modalOpenTime = 0;
-
-    // Leaderboard Storage
-    window.attemptsHistory = JSON.parse(localStorage.getItem('trigo_attempts_history') || '[]');
+    window.currentQuestions = [];
+    window.currentIndex = 0;
+    window.score = 0;
+    window.userAnswers = [];
+    window.isAnswered = false;
+    window.studentName = "";
+    window.studentSection = "";
+    window.quizStartTime = null;
+    window.quizTimerInterval = null;
+    window.elapsedSeconds = 0;
+    window.isTimerPaused = false;
     window.isTeacherAuthenticated = false;
 
     function getDiagramSVG(type) {
         if (type === "quadrant_quad3") {
             return `
-            <svg width="180" height="180" viewBox="-100 -100 200 200">
-                <line x1="-90" y1="0" x2="90" y2="0" stroke="#3B2525" stroke-width="2"/>
-                <line x1="0" y1="-90" x2="0" y2="90" stroke="#3B2525" stroke-width="2"/>
-                <text x="70" y="-10" fill="#000080" font-size="13" font-weight="bold">I</text>
-                <text x="-80" y="-10" fill="#000080" font-size="13" font-weight="bold">II</text>
-                <text x="-80" y="25" fill="#000080" font-size="13" font-weight="bold">III</text>
-                <text x="70" y="25" fill="#000080" font-size="13" font-weight="bold">IV</text>
-                <line x1="0" y1="0" x2="-60" y2="60" stroke="#FF0000" stroke-width="3"/>
-                <polygon points="-60,60 -50,57 -57,50" fill="#FF0000"/>
-                <path d="M 20 0 A 20 20 0 1 1 -14 14" fill="none" stroke="#A92B3E" stroke-width="2" stroke-dasharray="3,3"/>
-                <text x="-30" y="28" fill="#A92B3E" font-size="13" font-weight="bold">θ</text>
-            </svg>`;
-        } else if (type === "rotation_negative") {
-            return `
-            <svg width="180" height="180" viewBox="-100 -100 200 200">
-                <line x1="-90" y1="0" x2="90" y2="0" stroke="#3B2525" stroke-width="2"/>
-                <line x1="0" y1="-90" x2="0" y2="90" stroke="#3B2525" stroke-width="2"/>
-                <line x1="0" y1="0" x2="60" y2="60" stroke="#000080" stroke-width="2.5"/>
-                <path d="M 25 0 A 25 25 0 0 1 18 18" fill="none" stroke="#D32F2F" stroke-width="2.5"/>
-                <polygon points="18,18 22,12 14,12" fill="#D32F2F"/>
-                <text x="32" y="15" fill="#D32F2F" font-size="13" font-weight="bold">θ</text>
+            <svg width="190" height="170" viewBox="-100 -90 200 180">
+                <line x1="-90" y1="0" x2="90" y2="0" stroke="#3B2525" stroke-width="1.8"/>
+                <line x1="0" y1="-80" x2="0" y2="80" stroke="#3B2525" stroke-width="1.8"/>
+                <text x="65" y="-15" fill="#000080" font-size="12" font-weight="bold">Q I</text>
+                <text x="-80" y="-15" fill="#000080" font-size="12" font-weight="bold">Q II</text>
+                <text x="-80" y="25" fill="#000080" font-size="12" font-weight="bold">Q III</text>
+                <text x="65" y="25" fill="#000080" font-size="12" font-weight="bold">Q IV</text>
+                <line x1="0" y1="0" x2="-55" y2="55" stroke="#FF0000" stroke-width="2.8"/>
+                <polygon points="-55,55 -45,52 -52,45" fill="#FF0000"/>
+                <path d="M 18 0 A 18 18 0 1 1 -12 12" fill="none" stroke="#A92B3E" stroke-width="1.8" stroke-dasharray="3,3"/>
+                <text x="-30" y="25" fill="#A92B3E" font-size="13" font-weight="bold">θ</text>
             </svg>`;
         } else if (type === "triangle_30_60") {
             return `
-            <svg width="210" height="140" viewBox="-10 -15 220 150">
-                <polygon points="0,110 173.2,110 173.2,10" fill="none" stroke="#000080" stroke-width="2.5"/>
-                <rect x="158.2" y="95" width="15" height="15" fill="none" stroke="#000080" stroke-width="1.5"/>
-                <text x="20" y="103" fill="#3B2525" font-size="13" font-weight="bold">60°</text>
-                <text x="145" y="32" fill="#3B2525" font-size="13" font-weight="bold">30°</text>
-                <text x="182" y="65" fill="#A92B3E" font-size="14" font-weight="bold">√3</text>
-                <text x="75" y="130" fill="#A92B3E" font-size="14" font-weight="bold">1</text>
-                <text x="75" y="50" fill="#FF0000" font-size="14" font-weight="bold">2</text>
+            <svg width="200" height="130" viewBox="-10 -15 210 140">
+                <polygon points="0,110 155.8,110 0,20" fill="none" stroke="#000080" stroke-width="2.2"/>
+                <rect x="0" y="96" width="14" height="14" fill="none" stroke="#000080" stroke-width="1.2"/>
+                <text x="14" y="42" fill="#3B2525" font-size="11" font-weight="bold">30°</text>
+                <text x="105" y="103" fill="#3B2525" font-size="11" font-weight="bold">60°</text>
+                <text x="-14" y="70" fill="#A92B3E" font-size="12" font-weight="bold">1</text>
+                <text x="70" y="127" fill="#A92B3E" font-size="12" font-weight="bold">√3</text>
+                <text x="85" y="55" fill="#FF0000" font-size="12" font-weight="bold">2</text>
             </svg>`;
         } else if (type === "triangle_45_45") {
             return `
-            <svg width="170" height="150" viewBox="-15 -15 185 165">
-                <polygon points="0,120 120,120 120,0" fill="none" stroke="#000080" stroke-width="2.5"/>
-                <rect x="105" y="105" width="15" height="15" fill="none" stroke="#000080" stroke-width="1.5"/>
-                <text x="16" y="113" fill="#3B2525" font-size="13" font-weight="bold">45°</text>
-                <text x="92" y="28" fill="#3B2525" font-size="13" font-weight="bold">45°</text>
-                <text x="128" y="65" fill="#A92B3E" font-size="14" font-weight="bold">1</text>
-                <text x="55" y="140" fill="#A92B3E" font-size="14" font-weight="bold">1</text>
-                <text x="45" y="55" fill="#FF0000" font-size="14" font-weight="bold">√2</text>
+            <svg width="160" height="140" viewBox="-15 -15 180 160">
+                <polygon points="0,120 120,120 0,0" fill="none" stroke="#000080" stroke-width="2.2"/>
+                <rect x="0" y="106" width="14" height="14" fill="none" stroke="#000080" stroke-width="1.2"/>
+                <text x="10" y="32" fill="#3B2525" font-size="11" font-weight="bold">45°</text>
+                <text x="75" y="112" fill="#3B2525" font-size="11" font-weight="bold">45°</text>
+                <text x="-14" y="65" fill="#A92B3E" font-size="12" font-weight="bold">1</text>
+                <text x="55" y="138" fill="#A92B3E" font-size="12" font-weight="bold">1</text>
+                <text x="68" y="55" fill="#FF0000" font-size="12" font-weight="bold">√2</text>
             </svg>`;
         } else if (type === "unit_circle_intro") {
             return `
-            <svg width="180" height="180" viewBox="-100 -100 200 200">
+            <svg width="180" height="180" viewBox="-95 -95 190 190">
                 <circle cx="0" cy="0" r="75" fill="none" stroke="#CBD5E0" stroke-width="1.5"/>
-                <line x1="-90" y1="0" x2="90" y2="0" stroke="#3B2525" stroke-width="1.5"/>
-                <line x1="0" y1="-90" x2="0" y2="90" stroke="#3B2525" stroke-width="1.5"/>
+                <line x1="-85" y1="0" x2="85" y2="0" stroke="#3B2525" stroke-width="1.5"/>
+                <line x1="0" y1="-85" x2="0" y2="85" stroke="#3B2525" stroke-width="1.5"/>
                 <line x1="0" y1="0" x2="53" y2="-53" stroke="#000080" stroke-width="2"/>
-                <circle cx="53" cy="-53" r="4.5" fill="#FF0000"/>
-                <text x="60" y="-58" fill="#000080" font-size="13" font-weight="bold">P(x, y)</text>
+                <circle cx="53" cy="-53" r="4" fill="#FF0000"/>
+                <text x="60" y="-57" fill="#000080" font-size="11" font-weight="bold">P(x, y)</text>
                 <path d="M 22 0 A 22 22 0 0 0 16 -16" fill="none" stroke="#A92B3E" stroke-width="1.5"/>
-                <text x="25" y="-6" fill="#A92B3E" font-size="12" font-weight="bold">θ</text>
+                <text x="24" y="-7" fill="#A92B3E" font-size="11" font-weight="bold">θ</text>
             </svg>`;
         }
         return '';
     }
 
-    function showScreen(screenId) {
+    window.showToastNotification = function(msg) {
+        const toast = document.getElementById('toast-notification');
+        if (toast) {
+            toast.innerText = msg;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3500);
+        }
+    };
+
+    window.showScreen = function(screenId) {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        document.getElementById(screenId).classList.add('active');
-        if (window.MathJax) MathJax.typesetPromise();
-    }
+        const target = document.getElementById(screenId);
+        if (target) {
+            target.classList.add('active');
+        }
+        if (screenId === 'teacher-dashboard-screen') {
+            window.renderTeacherDashboard();
+        }
+    };
 
-    function goToStudentDetails() {
-        showScreen('details-screen');
-    }
+    window.goToStudentDetails = function() {
+        window.showScreen('details-screen');
+    };
 
-    function handleSectionChange() {
-        const val = document.getElementById('student-section-select').value;
+    window.handleSectionChange = function() {
+        const selectVal = document.getElementById('student-section-select').value;
         const customContainer = document.getElementById('others-section-container');
         const customInput = document.getElementById('student-section-custom');
-        if (val === 'Others') {
+        
+        if (selectVal === 'Others') {
             customContainer.classList.remove('hidden');
             customInput.required = true;
         } else {
             customContainer.classList.add('hidden');
             customInput.required = false;
         }
-    }
+    };
 
-    function handleDetailsSubmit(e) {
-        e.preventDefault();
-        studentName = document.getElementById('student-name').value.trim();
-        const secSelect = document.getElementById('student-section-select').value;
-        if (secSelect === 'Others') {
-            studentSection = 'Others (' + document.getElementById('student-section-custom').value.trim() + ')';
-        } else {
-            studentSection = secSelect;
+    window.handleDetailsSubmit = function(event) {
+        event.preventDefault();
+        const nameVal = document.getElementById('student-name').value.trim();
+        const selectVal = document.getElementById('student-section-select').value;
+        let finalSection = selectVal;
+
+        if (selectVal === 'Others') {
+            const customVal = document.getElementById('student-section-custom').value.trim();
+            finalSection = customVal ? `Others (${customVal})` : 'Others';
         }
 
-        if (studentName && studentSection) {
-            showScreen('notes-screen');
-        }
-    }
+        if (!nameVal || !selectVal) return;
 
-    function startQuizFromRefresh() {
-        currentQuestions = [...masterQuestions];
-        currentIndex = 0;
-        score = 0;
-        userAnswers = new Array(currentQuestions.length).fill(null);
-        isAnsweredCurrent = new Array(currentQuestions.length).fill(false);
-        
-        quizStartTime = Date.now();
-        pausedTimeTotal = 0;
-        
-        showScreen('question-screen');
-        renderQuestion();
-    }
+        window.studentName = nameVal;
+        window.studentSection = finalSection;
 
-    function renderQuestion() {
-        const q = currentQuestions[currentIndex];
-        const currentNum = currentIndex + 1;
-        const total = currentQuestions.length;
+        window.showScreen('notes-screen');
+    };
+
+    window.startQuizFromRefresh = function() {
+        window.currentQuestions = [...masterQuestions];
+        window.currentIndex = 0;
+        window.score = 0;
+        window.userAnswers = [];
+        window.elapsedSeconds = 0;
+        window.isTimerPaused = false;
+
+        if (window.quizTimerInterval) clearInterval(window.quizTimerInterval);
+        window.quizStartTime = Date.now();
+        window.quizTimerInterval = setInterval(() => {
+            if (!window.isTimerPaused) {
+                window.elapsedSeconds++;
+            }
+        }, 1000);
+
+        window.showScreen('question-screen');
+        window.renderQuestion();
+    };
+
+    window.renderQuestion = function() {
+        window.isAnswered = false;
+        const q = window.currentQuestions[window.currentIndex];
+        const currentNum = window.currentIndex + 1;
+        const total = window.currentQuestions.length;
         const pct = Math.round((currentNum / total) * 100);
 
         document.getElementById('progress-text').innerText = `Question ${currentNum} of ${total}`;
         document.getElementById('progress-percent').innerText = `${pct}%`;
         document.getElementById('progress-bar-fill').style.width = `${pct}%`;
-
-        document.getElementById('quiz-back-btn').style.visibility = currentIndex > 0 ? 'visible' : 'hidden';
-
         document.getElementById('question-text').innerHTML = q.text;
+
         const diagramBox = document.getElementById('diagram-container');
         if (q.hasDiagram) {
             diagramBox.style.display = 'flex';
@@ -1116,419 +1156,470 @@
         const optionsGrid = document.getElementById('options-grid');
         optionsGrid.innerHTML = '';
 
-        const answered = isAnsweredCurrent[currentIndex];
-        const prevAnswer = userAnswers[currentIndex];
-
         q.options.forEach((opt, idx) => {
             const btn = document.createElement('div');
             btn.className = 'option-card';
-            if (answered) {
-                btn.classList.add('disabled');
-                if (prevAnswer && prevAnswer.selectedIndex === idx) {
-                    btn.classList.add(opt.correct ? 'correct' : 'incorrect');
-                }
-                if (!opt.correct && q.options[idx].correct && prevAnswer && !prevAnswer.isCorrect) {
-                    btn.classList.add('correct');
-                }
-            } else {
-                btn.onclick = () => selectOption(idx);
-            }
             btn.innerHTML = `<span>${opt.text}</span>`;
+            btn.onclick = () => window.selectOption(idx);
             optionsGrid.appendChild(btn);
         });
 
-        const fbBox = document.getElementById('feedback-box');
-        const nextBtn = document.getElementById('next-btn');
+        document.getElementById('feedback-box').className = 'feedback-box hidden p-4 rounded-xl text-sm leading-relaxed mb-6 animate-fade-in';
+        document.getElementById('next-btn').style.display = 'none';
 
-        if (answered && prevAnswer) {
-            fbBox.className = `p-4 rounded-xl text-sm leading-relaxed mb-6 animate-fade-in block ${prevAnswer.isCorrect ? 'bg-emerald-50 border-l-4 border-emerald-600 text-emerald-900' : 'bg-rose-50 border-l-4 border-rose-600 text-rose-900'}`;
-            document.getElementById('feedback-title').innerHTML = prevAnswer.isCorrect ? '✓ Correct!' : '✕ Not quite!';
-            document.getElementById('feedback-hint').innerHTML = prevAnswer.explanation;
-            nextBtn.innerHTML = currentIndex === total - 1 ? `View Results &rarr;` : `Next Question &rarr;`;
-            nextBtn.style.display = 'inline-flex';
-        } else {
-            fbBox.className = 'hidden p-4 rounded-xl text-sm leading-relaxed mb-6 animate-fade-in';
-            nextBtn.style.display = 'none';
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            window.MathJax.typesetPromise();
         }
+    };
 
-        if (window.MathJax) MathJax.typesetPromise();
-    }
+    window.selectOption = function(selectedIndex) {
+        if (window.isAnswered) return;
+        window.isAnswered = true;
 
-    function selectOption(selectedIndex) {
-        if (isAnsweredCurrent[currentIndex]) return;
-        isAnsweredCurrent[currentIndex] = true;
-
-        const q = currentQuestions[currentIndex];
+        const q = window.currentQuestions[window.currentIndex];
+        const optionsNodes = document.querySelectorAll('.option-card');
         const selectedOpt = q.options[selectedIndex];
 
-        userAnswers[currentIndex] = {
-            questionObj: q,
-            selectedIndex: selectedIndex,
-            userChoiceText: selectedOpt.text,
-            correctChoiceText: q.options.find(o => o.correct).text,
+        window.userAnswers[window.currentIndex] = {
+            questionId: q.id,
+            concept: q.concept,
+            questionText: q.text,
+            userChoice: selectedOpt.text,
             isCorrect: selectedOpt.correct,
-            explanation: q.explanation
+            correctChoice: q.options.find(o => o.correct).text
         };
 
+        optionsNodes.forEach((node, i) => {
+            node.classList.add('disabled');
+            if (i === selectedIndex) {
+                node.classList.add(selectedOpt.correct ? 'correct' : 'incorrect');
+            }
+            if (!selectedOpt.correct && q.options[i].correct) {
+                node.classList.add('correct');
+            }
+        });
+
+        const feedbackBox = document.getElementById('feedback-box');
+        const feedbackTitle = document.getElementById('feedback-title');
+        const feedbackHint = document.getElementById('feedback-hint');
+
+        feedbackBox.classList.remove('hidden');
+
         if (selectedOpt.correct) {
-            score++;
-        }
-
-        renderQuestion();
-    }
-
-    function prevQuestion() {
-        if (currentIndex > 0) {
-            currentIndex--;
-            renderQuestion();
-        }
-    }
-
-    function nextQuestion() {
-        if (currentIndex < currentQuestions.length - 1) {
-            currentIndex++;
-            renderQuestion();
+            window.score++;
+            feedbackBox.className = 'p-4 rounded-xl text-sm leading-relaxed mb-6 animate-fade-in bg-emerald-50 border-l-4 border-emerald-600 text-emerald-950';
+            feedbackTitle.innerHTML = `<span class="text-emerald-700 font-extrabold text-base">✓ Correct!</span>`;
+            feedbackHint.innerHTML = window.currentIndex === 7 ? "Great! You are ready to explore the Unit Circle." : "Well done!";
         } else {
-            showResults();
+            feedbackBox.className = 'p-4 rounded-xl text-sm leading-relaxed mb-6 animate-fade-in bg-rose-50 border-l-4 border-rose-600 text-rose-950';
+            feedbackTitle.innerHTML = `<span class="text-rose-700 font-extrabold text-base">✕ Not quite!</span>`;
+            feedbackHint.innerHTML = q.hint;
         }
-    }
 
-    function formatTime(seconds) {
-        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-        const s = (seconds % 60).toString().padStart(2, '0');
+        const nextBtn = document.getElementById('next-btn');
+        if (window.currentIndex === window.currentQuestions.length - 1) {
+            nextBtn.innerHTML = `View Results &rarr;`;
+        } else {
+            nextBtn.innerHTML = `Next Question &rarr;`;
+        }
+        nextBtn.style.display = 'inline-flex';
+
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            window.MathJax.typesetPromise();
+        }
+    };
+
+    window.prevQuestion = function() {
+        if (window.currentIndex > 0) {
+            window.currentIndex--;
+            window.renderQuestion();
+        } else {
+            window.showScreen('notes-screen');
+        }
+    };
+
+    window.nextQuestion = function() {
+        if (window.currentIndex < window.currentQuestions.length - 1) {
+            window.currentIndex++;
+            window.renderQuestion();
+        } else {
+            window.finishQuiz();
+        }
+    };
+
+    window.formatTime = function(sec) {
+        const m = Math.floor(sec / 60).toString().padStart(2, '0');
+        const s = (sec % 60).toString().padStart(2, '0');
         return `${m}:${s}`;
-    }
+    };
 
-    function showResults() {
-        showScreen('results-screen');
+    window.finishQuiz = function() {
+        if (window.quizTimerInterval) clearInterval(window.quizTimerInterval);
 
-        const totalTimeSeconds = Math.max(1, Math.round((Date.now() - quizStartTime - pausedTimeTotal) / 1000));
-        const formattedDuration = formatTime(totalTimeSeconds);
-        const pct = Math.round((score / currentQuestions.length) * 100);
+        const totalSec = window.elapsedSeconds;
+        const timeFmt = window.formatTime(totalSec);
+        const finalPct = Math.round((window.score / 8) * 100);
 
-        document.getElementById('result-student-info').innerText = `${studentName} (${studentSection})`;
-        document.getElementById('score-display').innerText = `${score} / ${currentQuestions.length}`;
-        document.getElementById('score-percentage').innerText = `${pct}% Accuracy • Completed in ${formattedDuration}`;
+        document.getElementById('result-student-info').innerText = `${window.studentName || 'Student'} (${window.studentSection || 'N/A'}) • Time: ${timeFmt}`;
+        document.getElementById('score-display').innerText = `${window.score} / 8`;
+        document.getElementById('score-percentage').innerText = `${finalPct}% Accuracy`;
 
         const badge = document.getElementById('badge-status');
         const feedback = document.getElementById('result-feedback');
 
-        if (score >= 7) {
+        if (window.score >= 7) {
             badge.innerText = "READY TO EXPLORE 🚀";
-            badge.className = "inline-block px-4 py-1.5 rounded-full font-extrabold text-sm mb-3 bg-emerald-100 text-emerald-800";
-            feedback.innerText = "Excellent foundation! You are ready to explore the Unit Circle.";
-        } else if (score >= 5) {
+            badge.className = "inline-block px-4 py-1.5 rounded-full font-extrabold text-sm mb-3 bg-emerald-100 text-emerald-800 border border-emerald-300";
+            feedback.innerText = "Excellent foundation! You are fully prepared to explore the Unit Circle Approach.";
+        } else if (window.score >= 5) {
             badge.innerText = "ALMOST THERE 👍";
-            badge.className = "inline-block px-4 py-1.5 rounded-full font-extrabold text-sm mb-3 bg-amber-100 text-amber-800";
-            feedback.innerText = "Good foundation. Review a few key ideas before moving on.";
+            badge.className = "inline-block px-4 py-1.5 rounded-full font-extrabold text-sm mb-3 bg-amber-100 text-amber-800 border border-amber-300";
+            feedback.innerText = "Good start! Review signs, quadrants and special angle triangles before class.";
         } else {
             badge.innerText = "QUICK REFRESH NEEDED 💡";
-            badge.className = "inline-block px-4 py-1.5 rounded-full font-extrabold text-sm mb-3 bg-rose-100 text-rose-800";
-            feedback.innerText = "Review the reference notes and try again.";
+            badge.className = "inline-block px-4 py-1.5 rounded-full font-extrabold text-sm mb-3 bg-rose-100 text-rose-800 border border-rose-300";
+            feedback.innerText = "Review the quick reference notes and try again to sharpen your prerequisite skills.";
         }
 
-        saveAttempt(studentName, studentSection, score, pct, totalTimeSeconds, formattedDuration);
-    }
-
-    function saveAttempt(name, sec, scr, pct, timeSec, timeFmt) {
-        const attemptRecord = {
-            studentName: name,
-            name: name,
-            section: sec,
-            score: scr,
-            totalQuestions: 8,
-            percentage: pct,
-            timeSeconds: timeSec,
-            completionTime: timeFmt,
-            timeFormatted: timeFmt,
-            submittedAt: new Date().toISOString(),
-            answers: userAnswers.map(a => a ? a.isCorrect : false)
-        };
-
-        window.attemptsHistory.push(attemptRecord);
-        localStorage.setItem('trigo_attempts_history', JSON.stringify(window.attemptsHistory));
-
+        // Save Attempt to Cloud Firestore
         if (typeof window.saveAttemptToCloud === 'function') {
-            window.saveAttemptToCloud(attemptRecord);
+            window.saveAttemptToCloud({
+                studentName: window.studentName || 'Anonymous',
+                name: window.studentName || 'Anonymous',
+                section: window.studentSection || 'N/A',
+                score: window.score,
+                totalQuestions: 8,
+                percentage: finalPct,
+                timeSeconds: totalSec,
+                completionTime: timeFmt,
+                timeFormatted: timeFmt,
+                answers: window.userAnswers.map(a => a ? a.isCorrect : false)
+            });
+        }
+
+        window.showScreen('results-screen');
+    };
+
+    window.toggleReview = function() {
+        const container = document.getElementById('review-list-container');
+        container.innerHTML = '';
+
+        window.userAnswers.forEach((ans, idx) => {
+            if (!ans) return;
+            const card = document.createElement('div');
+            card.className = `p-4 rounded-xl border ${ans.isCorrect ? 'bg-emerald-50/50 border-emerald-200' : 'bg-rose-50/50 border-rose-200'}`;
+            card.innerHTML = `
+                <div class="flex items-center justify-between mb-1">
+                    <span class="font-bold text-xs ${ans.isCorrect ? 'text-emerald-800' : 'text-rose-800'}">Question ${idx + 1} • ${ans.concept}</span>
+                    <span class="font-bold text-xs">${ans.isCorrect ? '✓ Correct' : '✕ Incorrect'}</span>
+                </div>
+                <div class="text-sm font-semibold text-slate-800 mb-2">${ans.questionText}</div>
+                <div class="text-xs space-y-1">
+                    <div>Your answer: <span class="font-bold ${ans.isCorrect ? 'text-emerald-700' : 'text-rose-700'}">${ans.userChoice}</span></div>
+                    ${!ans.isCorrect ? `<div class="text-emerald-800">Correct answer: <span class="font-bold">${ans.correctChoice}</span></div>` : ''}
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+        window.showScreen('review-screen');
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            window.MathJax.typesetPromise();
+        }
+    };
+
+    window.restartQuiz = function() {
+        window.startQuizFromRefresh();
+    };
+
+    function openTeacherAuthModal() {
+        document.getElementById('teacher-pass-input').value = '';
+        document.getElementById('teacher-auth-error').classList.add('hidden');
+        document.getElementById('teacher-auth-modal').classList.remove('hidden');
+    }
+    window.openTeacherAuthModal = openTeacherAuthModal;
+
+    function closeTeacherAuthModal() {
+        document.getElementById('teacher-auth-modal').classList.add('hidden');
+    }
+    window.closeTeacherAuthModal = closeTeacherAuthModal;
+
+    function handleTeacherAuthSubmit(event) {
+        event.preventDefault();
+        const inputPass = document.getElementById('teacher-pass-input').value.trim();
+        if (inputPass.toUpperCase() === 'SUHAILA') {
+            window.isTeacherAuthenticated = true;
+            closeTeacherAuthModal();
+            showScreen('teacher-dashboard-screen');
+        } else {
+            document.getElementById('teacher-auth-error').classList.remove('hidden');
         }
     }
+    window.handleTeacherAuthSubmit = handleTeacherAuthSubmit;
 
     function teacherLogout() {
         window.isTeacherAuthenticated = false;
         showScreen('welcome-screen');
     }
+    window.teacherLogout = teacherLogout;
 
-    function openTeacherAuthModal() {
-        document.getElementById('teacher-auth-modal').classList.remove('hidden');
-        document.getElementById('teacher-auth-error').classList.add('hidden');
-        const passInput = document.getElementById('teacher-pass-input');
-        if (passInput) passInput.value = '';
-    }
-
-    function closeTeacherAuthModal() {
-        document.getElementById('teacher-auth-modal').classList.add('hidden');
-    }
-
-    function handleTeacherAuthSubmit(e) {
-        e.preventDefault();
-        const pass = document.getElementById('teacher-pass-input').value.trim();
-        if (pass.toUpperCase() === 'SUHAILA') {
-            window.isTeacherAuthenticated = true;
-            closeTeacherAuthModal();
-            showScreen('teacher-dashboard-screen');
-            renderTeacherDashboard();
-        } else {
-            document.getElementById('teacher-auth-error').classList.remove('hidden');
+    function openReferenceModal() {
+        window.isTimerPaused = true;
+        document.getElementById('reference-modal').classList.remove('hidden');
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            window.MathJax.typesetPromise();
         }
     }
+    window.openReferenceModal = openReferenceModal;
 
-    window.renderTeacherDashboard = function() {
-        const selectedSec = document.getElementById('teacher-section-filter').value;
-        const sortMode = document.getElementById('teacher-sort-filter').value;
-
-        // 1. Filter attempts by section
-        let filteredAttempts = window.attemptsHistory.filter(att => {
-            if (selectedSec === 'All Sections') return true;
-            if (selectedSec === 'Others') return (att.section || '').startsWith('Others');
-            return att.section === selectedSec;
-        });
-
-        // 2. Best Attempt Filtering (One entry per unique student)
-        const bestAttemptsMap = new Map();
-        filteredAttempts.forEach(att => {
-            const key = (att.name || att.studentName || 'Anonymous').toLowerCase().trim();
-            if (!bestAttemptsMap.has(key)) {
-                bestAttemptsMap.set(key, att);
-            } else {
-                const existing = bestAttemptsMap.get(key);
-                if (att.score > existing.score) {
-                    bestAttemptsMap.set(key, att);
-                } else if (att.score === existing.score && att.timeSeconds < existing.timeSeconds) {
-                    bestAttemptsMap.set(key, att);
-                }
-            }
-        });
-
-        let bestAttemptsList = Array.from(bestAttemptsMap.values());
-
-        // 3. Sorting Mechanics
-        bestAttemptsList.sort((a, b) => {
-            if (sortMode === 'DEFAULT') {
-                return (b.score - a.score) || (a.timeSeconds - b.timeSeconds);
-            } else if (sortMode === 'HIGHEST_SCORE') {
-                return b.score - a.score;
-            } else if (sortMode === 'LOWEST_SCORE') {
-                return a.score - b.score;
-            } else if (sortMode === 'FASTEST_TIME') {
-                return a.timeSeconds - b.timeSeconds;
-            } else if (sortMode === 'SLOWEST_TIME') {
-                return b.timeSeconds - a.timeSeconds;
-            } else if (sortMode === 'NAME_AZ') {
-                return (a.name || a.studentName || '').localeCompare(b.name || b.studentName || '');
-            }
-            return 0;
-        });
-
-        // 4. Update Summary Cards
-        const totalUnique = bestAttemptsList.length;
-        document.getElementById('td-total-students').innerText = totalUnique;
-
-        if (totalUnique === 0) {
-            document.getElementById('td-mean-score').innerText = "—";
-            document.getElementById('td-mean-pct').innerText = "0% avg";
-            document.getElementById('td-highest-score').innerText = "—";
-            document.getElementById('td-mean-time').innerText = "—";
-            document.getElementById('td-ready-pct').innerText = "0%";
-            
-            document.getElementById('band-ready-count').innerText = "0 students";
-            document.getElementById('band-almost-count').innerText = "0 students";
-            document.getElementById('band-refresh-count').innerText = "0 students";
-            document.getElementById('band-ready-fill').style.width = "0%";
-            document.getElementById('band-almost-fill').style.width = "0%";
-            document.getElementById('band-refresh-fill').style.width = "0%";
-
-            document.getElementById('item-analysis-table-body').innerHTML = `<tr><td colspan="6" class="p-4 text-center text-slate-400 font-medium">No completed student attempts yet.</td></tr>`;
-            document.getElementById('teacher-leaderboard-tbody').innerHTML = `<tr><td colspan="7" class="p-4 text-center text-slate-400 font-medium">No completed student attempts yet.</td></tr>`;
-            document.getElementById('most-challenging-badge').classList.add('hidden');
-            return;
-        }
-
-        const sumScore = bestAttemptsList.reduce((acc, curr) => acc + curr.score, 0);
-        const meanScore = (sumScore / totalUnique).toFixed(1);
-        const meanPct = Math.round((meanScore / 8) * 100);
-        const maxScore = Math.max(...bestAttemptsList.map(a => a.score));
-        const sumTime = bestAttemptsList.reduce((acc, curr) => acc + curr.timeSeconds, 0);
-        const meanTimeSec = Math.round(sumTime / totalUnique);
-
-        const countReady = bestAttemptsList.filter(a => a.score >= 7).length;
-        const countAlmost = bestAttemptsList.filter(a => a.score >= 5 && a.score <= 6).length;
-        const countRefresh = bestAttemptsList.filter(a => a.score <= 4).length;
-
-        const readyPct = Math.round((countReady / totalUnique) * 100);
-        const almostPct = Math.round((countAlmost / totalUnique) * 100);
-        const refreshPct = Math.round((countRefresh / totalUnique) * 100);
-
-        document.getElementById('td-mean-score').innerText = `${meanScore} / 8`;
-        document.getElementById('td-mean-pct').innerText = `${meanPct}% avg accuracy`;
-        document.getElementById('td-highest-score').innerText = `${maxScore} / 8`;
-        document.getElementById('td-mean-time').innerText = formatTime(meanTimeSec);
-        document.getElementById('td-ready-pct').innerText = `${readyPct}%`;
-
-        document.getElementById('band-ready-count').innerText = `${countReady} (${readyPct}%)`;
-        document.getElementById('band-almost-count').innerText = `${countAlmost} (${almostPct}%)`;
-        document.getElementById('band-refresh-count').innerText = `${countRefresh} (${refreshPct}%)`;
-        document.getElementById('band-ready-fill').style.width = `${readyPct}%`;
-        document.getElementById('band-almost-fill').style.width = `${almostPct}%`;
-        document.getElementById('band-refresh-fill').style.width = `${refreshPct}%`;
-
-        // 5. Item Misconception Analysis
-        const itemBody = document.getElementById('item-analysis-table-body');
-        itemBody.innerHTML = '';
-        
-        let minPassRate = 101;
-        let lowestQIndex = -1;
-
-        const itemStats = masterQuestions.map((q, idx) => {
-            let correctCount = 0;
-            bestAttemptsList.forEach(att => {
-                if (att.responses && att.responses[idx]) {
-                    correctCount++;
-                }
-            });
-            const passPct = Math.round((correctCount / totalUnique) * 100);
-            if (passPct < minPassRate) {
-                minPassRate = passPct;
-                lowestQIndex = idx;
-            }
-            return {
-                qNum: idx + 1,
-                concept: q.type,
-                correct: correctCount,
-                incorrect: totalUnique - correctCount,
-                passPct: passPct
-            };
-        });
-
-        if (lowestQIndex >= 0) {
-            const badge = document.getElementById('most-challenging-badge');
-            badge.innerText = `⚠️ Most Challenging: Q${lowestQIndex + 1} (${minPassRate}% Pass)`;
-            badge.classList.remove('hidden');
-        }
-
-        itemStats.forEach((stat, idx) => {
-            const isLowest = idx === lowestQIndex;
-            const tr = document.createElement('tr');
-            tr.className = isLowest ? 'bg-rose-50 border-b border-rose-200 font-semibold' : (idx % 2 === 0 ? 'bg-slate-50 border-b' : 'bg-white border-b');
-            tr.innerHTML = `
-                <td class="p-2.5 font-bold text-navy">Q${stat.qNum}</td>
-                <td class="p-2.5">${stat.concept}</td>
-                <td class="p-2.5 font-bold text-emerald-700">${stat.correct}</td>
-                <td class="p-2.5 font-bold text-rose-700">${stat.incorrect}</td>
-                <td class="p-2.5 font-bold ${stat.passPct < 60 ? 'text-rose-700' : 'text-emerald-700'}">${stat.passPct}%</td>
-                <td class="p-2.5 font-bold">${isLowest ? '<span class="text-rose-700">⚠️ Flagged Misconception</span>' : '<span class="text-slate-400">Normal</span>'}</td>
-            `;
-            itemBody.appendChild(tr);
-        });
-
-        // 6. Leaderboard Table View
-        const lbBody = document.getElementById('teacher-leaderboard-tbody');
-        lbBody.innerHTML = '';
-
-        bestAttemptsList.forEach((item, index) => {
-            let rankSymbol = index + 1;
-            if (index === 0) rankSymbol = "🥇 1";
-            else if (index === 1) rankSymbol = "🥈 2";
-            else if (index === 2) rankSymbol = "🥉 3";
-
-            const studentDisplayName = item.name || item.studentName || 'Anonymous';
-
-            const row = document.createElement('tr');
-            row.className = index % 2 === 0 ? 'bg-slate-50 border-b' : 'bg-white border-b';
-            row.innerHTML = `
-                <td class="p-3 font-bold">${rankSymbol}</td>
-                <td class="p-3 font-semibold text-navy">${studentDisplayName}</td>
-                <td class="p-3"><span class="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-[11px] font-bold">${item.section}</span></td>
-                <td class="p-3 font-bold text-emerald-700">${item.score}/8</td>
-                <td class="p-3 font-bold">${item.score}</td>
-                <td class="p-3 font-bold text-crimson">${item.percentage}%</td>
-                <td class="p-3 font-mono font-bold text-slate-700">${item.timeFormatted || item.completionTime}</td>
-            `;
-            lbBody.appendChild(row);
-        });
+    function closeReferenceModal() {
+        window.isTimerPaused = false;
+        document.getElementById('reference-modal').classList.add('hidden');
     }
+    window.closeReferenceModal = closeReferenceModal;
 
     function openClearModal() {
-        const selectedSec = document.getElementById('teacher-section-filter').value;
-        document.getElementById('clear-target-section-name').innerText = selectedSec;
+        const secVal = document.getElementById('teacher-section-filter').value;
+        document.getElementById('clear-target-section-name').innerText = secVal;
         document.getElementById('clear-leaderboard-modal').classList.remove('hidden');
     }
+    window.openClearModal = openClearModal;
 
     function closeClearModal() {
         document.getElementById('clear-leaderboard-modal').classList.add('hidden');
     }
+    window.closeClearModal = closeClearModal;
 
     function executeClearLeaderboard() {
-        const selectedScope = document.querySelector('input[name="clear-scope"]:checked').value;
         const selectedSec = document.getElementById('teacher-section-filter').value;
-
-        if (selectedScope === 'ALL' || selectedSec === 'All Sections') {
-            window.attemptsHistory = [];
-        } else {
-            window.attemptsHistory = window.attemptsHistory.filter(att => {
-                if (selectedSec === 'Others') {
-                    return !(att.section || '').startsWith('Others');
-                }
-                return att.section !== selectedSec;
-            });
-        }
-
-        localStorage.setItem('trigo_attempts_history', JSON.stringify(window.attemptsHistory));
+        const scopeRadio = document.querySelector('input[name="clear-scope"]:checked');
+        const scope = scopeRadio ? scopeRadio.value : 'CURRENT';
 
         if (typeof window.clearAttemptsFromCloud === 'function') {
-            window.clearAttemptsFromCloud(selectedScope, selectedSec);
+            window.clearAttemptsFromCloud(scope, selectedSec);
         }
 
         closeClearModal();
-        window.renderTeacherDashboard();
-    }
-
-    function openReferenceModal() {
-        modalOpenTime = Date.now();
-        document.getElementById('reference-modal').classList.remove('hidden');
-        if (window.MathJax) MathJax.typesetPromise();
-    }
-
-    function closeReferenceModal() {
-        if (modalOpenTime > 0) {
-            pausedTimeTotal += (Date.now() - modalOpenTime);
-            modalOpenTime = 0;
+        if (typeof window.renderTeacherDashboard === 'function') {
+            window.renderTeacherDashboard();
         }
-        document.getElementById('reference-modal').classList.add('hidden');
     }
+    window.executeClearLeaderboard = executeClearLeaderboard;
 
-    function toggleReview() {
-        const container = document.getElementById('review-list-container');
-        if (container) {
-            container.innerHTML = '';
-            userAnswers.forEach((ans, idx) => {
-                if (!ans) return;
-                const item = document.createElement('div');
-                item.className = `p-4 rounded-xl border ${ans.isCorrect ? 'border-emerald-200 bg-emerald-50/50' : 'border-rose-200 bg-rose-50/50'}`;
-                item.innerHTML = `
-                    <div class="font-bold text-navy text-sm mb-1">Q${idx + 1}: ${ans.questionObj.text}</div>
-                    <div class="text-xs mb-1">Your Answer: <span class="font-bold ${ans.isCorrect ? 'text-emerald-700' : 'text-rose-700'}">${ans.userChoiceText}</span> ${ans.isCorrect ? '✓' : '✕'}</div>
-                    ${!ans.isCorrect ? `<div class="text-xs text-emerald-800 font-semibold mb-1">Correct Answer: ${ans.correctChoiceText}</div>` : ''}
-                    <div class="text-xs text-slate-600 italic mt-2 border-t border-slate-200/60 pt-1.5">${ans.explanation}</div>
-                `;
-                container.appendChild(item);
-            });
+    window.renderTeacherDashboard = function() {
+        const rawHistory = window.attemptsHistory || [];
+        const sectionFilter = document.getElementById('teacher-section-filter')?.value || 'All Sections';
+        const sortOrder = document.getElementById('teacher-sort-filter')?.value || 'DEFAULT';
+
+        // 1. Filter records by section
+        let filtered = rawHistory.filter(rec => {
+            const secVal = rec.section || '';
+            if (sectionFilter === 'All Sections') return true;
+            if (sectionFilter === 'Others') return secVal.startsWith('Others');
+            return secVal === sectionFilter;
+        });
+
+        // 2. Best Attempt map per student
+        const studentBestMap = new Map();
+        filtered.forEach(rec => {
+            const nameKey = (rec.studentName || rec.name || 'Anonymous').trim().toLowerCase() + '_' + (rec.section || '').trim().toLowerCase();
+            if (!studentBestMap.has(nameKey)) {
+                studentBestMap.set(nameKey, rec);
+            } else {
+                const existing = studentBestMap.get(nameKey);
+                let isBetter = false;
+                if (rec.score > existing.score) {
+                    isBetter = true;
+                } else if (rec.score === existing.score) {
+                    if (rec.timeSeconds < existing.timeSeconds) {
+                        isBetter = true;
+                    }
+                }
+                if (isBetter) {
+                    studentBestMap.set(nameKey, rec);
+                }
+            }
+        });
+
+        let leaderboardList = Array.from(studentBestMap.values());
+
+        // 3. Sorting Hierarchy (Default: Score DESC -> Time ASC)
+        leaderboardList.sort((a, b) => {
+            if (sortOrder === 'HIGHEST_SCORE') return b.score - a.score;
+            if (sortOrder === 'LOWEST_SCORE') return a.score - b.score;
+            if (sortOrder === 'FASTEST_TIME') return a.timeSeconds - b.timeSeconds;
+            if (sortOrder === 'SLOWEST_TIME') return b.timeSeconds - a.timeSeconds;
+            if (sortOrder === 'NAME_AZ') return a.name.localeCompare(b.name);
+            
+            // DEFAULT: Score Descending -> Time Ascending
+            if (b.score !== a.score) {
+                return b.score - a.score;
+            }
+            return a.timeSeconds - b.timeSeconds;
+        });
+
+        // 4. Update Summary Statistics
+        const totalCount = leaderboardList.length;
+        document.getElementById('td-total-students').innerText = totalCount;
+
+        if (totalCount === 0) {
+            document.getElementById('td-mean-score').innerText = '—';
+            document.getElementById('td-mean-pct').innerText = '0% avg';
+            document.getElementById('td-highest-score').innerText = '—';
+            document.getElementById('td-mean-time').innerText = '—';
+            document.getElementById('td-ready-pct').innerText = '0%';
+
+            document.getElementById('band-ready-count').innerText = '0 students';
+            document.getElementById('band-ready-fill').style.width = '0%';
+            document.getElementById('band-almost-count').innerText = '0 students';
+            document.getElementById('band-almost-fill').style.width = '0%';
+            document.getElementById('band-refresh-count').innerText = '0 students';
+            document.getElementById('band-refresh-fill').style.width = '0%';
+
+            document.getElementById('teacher-leaderboard-tbody').innerHTML = `
+                <tr><td colspan="7" class="p-4 text-center text-slate-400 italic">No completed student attempts yet.</td></tr>
+            `;
+            document.getElementById('most-challenging-badge').classList.add('hidden');
+            window.renderEmptyItemAnalysis();
+            return;
         }
-        showScreen('review-screen');
-    }
 
-    function restartQuiz() {
-        startQuizFromRefresh();
-    }
+        const sumScore = leaderboardList.reduce((acc, curr) => acc + curr.score, 0);
+        const meanScore = (sumScore / totalCount).toFixed(1);
+        const meanPct = Math.round((sumScore / (totalCount * 8)) * 100);
+        const maxScore = Math.max(...leaderboardList.map(l => l.score));
+        const sumTime = leaderboardList.reduce((acc, curr) => acc + curr.timeSeconds, 0);
+        const meanTimeSec = Math.round(sumTime / totalCount);
+
+        const readyCount = leaderboardList.filter(l => l.score >= 7).length;
+        const almostCount = leaderboardList.filter(l => l.score >= 5 && l.score <= 6).length;
+        const refreshCount = leaderboardList.filter(l => l.score <= 4).length;
+
+        document.getElementById('td-mean-score').innerText = `${meanScore} / 8`;
+        document.getElementById('td-mean-pct').innerText = `${meanPct}% avg`;
+        document.getElementById('td-highest-score').innerText = `${maxScore} / 8`;
+        document.getElementById('td-mean-time').innerText = window.formatTime(meanTimeSec);
+        document.getElementById('td-ready-pct').innerText = `${Math.round((readyCount / totalCount) * 100)}%`;
+
+        document.getElementById('band-ready-count').innerText = `${readyCount} student${readyCount !== 1 ? 's' : ''}`;
+        document.getElementById('band-ready-fill').style.width = `${Math.round((readyCount / totalCount) * 100)}%`;
+        document.getElementById('band-almost-count').innerText = `${almostCount} student${almostCount !== 1 ? 's' : ''}`;
+        document.getElementById('band-almost-fill').style.width = `${Math.round((almostCount / totalCount) * 100)}%`;
+        document.getElementById('band-refresh-count').innerText = `${refreshCount} student${refreshCount !== 1 ? 's' : ''}`;
+        document.getElementById('band-refresh-fill').style.width = `${Math.round((refreshCount / totalCount) * 100)}%`;
+
+        // 5. Render Leaderboard Rows
+        const tbody = document.getElementById('teacher-leaderboard-tbody');
+        tbody.innerHTML = '';
+
+        leaderboardList.forEach((st, idx) => {
+            let rankBadge = `${idx + 1}`;
+            if (idx === 0) rankBadge = '🥇 1';
+            else if (idx === 1) rankBadge = '🥈 2';
+            else if (idx === 2) rankBadge = '🥉 3';
+
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-slate-100 hover:bg-slate-50 transition-all';
+            tr.innerHTML = `
+                <td class="p-3 font-bold text-navy">${rankBadge}</td>
+                <td class="p-3 font-semibold text-slate-800">${st.name}</td>
+                <td class="p-3 text-slate-600">${st.section}</td>
+                <td class="p-3 font-bold text-slate-700">${st.score}/8</td>
+                <td class="p-3 font-extrabold text-navy">${st.score}</td>
+                <td class="p-3 font-semibold text-slate-600">${st.percentage}%</td>
+                <td class="p-3 font-mono text-slate-600">${st.timeFormatted}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // 6. Item Misconception Analysis
+        window.renderItemAnalysis(filtered);
+    };
+
+    window.renderItemAnalysis = function(filteredRecords) {
+        const itemStats = masterQuestions.map(q => ({
+            id: q.id,
+            concept: q.concept,
+            correct: 0,
+            incorrect: 0,
+            total: 0
+        }));
+
+        filteredRecords.forEach(rec => {
+            const resp = Array.isArray(rec.answers) ? rec.answers : rec.responses;
+            if (Array.isArray(resp)) {
+                resp.forEach((isCorr, i) => {
+                    if (i < itemStats.length) {
+                        itemStats[i].total++;
+                        if (isCorr) itemStats[i].correct++;
+                        else itemStats[i].incorrect++;
+                    }
+                });
+            }
+        });
+
+        let lowestPct = 101;
+        let hardestQ = null;
+
+        itemStats.forEach(st => {
+            const pct = st.total > 0 ? Math.round((st.correct / st.total) * 100) : 0;
+            if (st.total > 0 && pct < lowestPct) {
+                lowestPct = pct;
+                hardestQ = st.id;
+            }
+        });
+
+        const badge = document.getElementById('most-challenging-badge');
+        if (hardestQ !== null) {
+            badge.innerText = `⚠️ Q${hardestQ} Most Challenging (${lowestPct}% Pass)`;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+
+        const tbody = document.getElementById('item-analysis-table-body');
+        tbody.innerHTML = '';
+
+        itemStats.forEach(st => {
+            const passPct = st.total > 0 ? Math.round((st.correct / st.total) * 100) : 0;
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-slate-100 hover:bg-slate-50';
+            
+            let flag = `<span class="text-emerald-700 font-bold">Good</span>`;
+            if (st.id === hardestQ && st.total > 0) {
+                flag = `<span class="text-rose-700 font-bold">⚠️ Flagged</span>`;
+            }
+
+            tr.innerHTML = `
+                <td class="p-2.5 font-bold text-navy">Q${st.id}</td>
+                <td class="p-2.5 font-medium text-slate-800">${st.concept}</td>
+                <td class="p-2.5 font-bold text-emerald-700">${st.correct}</td>
+                <td class="p-2.5 font-bold text-rose-700">${st.incorrect}</td>
+                <td class="p-2.5 font-bold text-slate-700">${passPct}%</td>
+                <td class="p-2.5 text-xs">${flag}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    };
+
+    window.renderEmptyItemAnalysis = function() {
+        const tbody = document.getElementById('item-analysis-table-body');
+        tbody.innerHTML = '';
+        masterQuestions.forEach(q => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-slate-100';
+            tr.innerHTML = `
+                <td class="p-2.5 font-bold text-navy">Q${q.id}</td>
+                <td class="p-2.5 font-medium text-slate-800">${q.concept}</td>
+                <td class="p-2.5 text-slate-400">0</td>
+                <td class="p-2.5 text-slate-400">0</td>
+                <td class="p-2.5 text-slate-400">0%</td>
+                <td class="p-2.5 text-slate-400">—</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    };
 </script>
+
 </body>
 </html>
