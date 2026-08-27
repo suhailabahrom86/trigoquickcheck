@@ -33,6 +33,116 @@
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
 
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, addDoc, deleteDoc, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        let db = null;
+        let auth = null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'trigo-quick-check-app';
+
+        async function initCloudSync() {
+            if (typeof __firebase_config === 'undefined' || !__firebase_config) {
+                console.log("Firebase config unavailable; falling back to local storage.");
+                return;
+            }
+
+            try {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Authenticate before query (Rule 3)
+                let user = null;
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const cred = await signInWithCustomToken(auth, __initial_auth_token);
+                    user = cred.user;
+                } else {
+                    const cred = await signInAnonymously(auth);
+                    user = cred.user;
+                }
+
+                if (!user) return;
+
+                // Shared collection path (Rule 1 & Rule 2)
+                const attemptsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'trigo_attempts');
+
+                // Real-time synchronization callback with error callback
+                onSnapshot(attemptsColRef, (snapshot) => {
+                    const cloudRecords = [];
+                    snapshot.forEach((docSnap) => {
+                        cloudRecords.push({
+                            docId: docSnap.id,
+                            ...docSnap.data()
+                        });
+                    });
+                    
+                    window.attemptsHistory = cloudRecords;
+                    localStorage.setItem('trigo_attempts_history', JSON.stringify(cloudRecords));
+
+                    // Automatically update dashboard UI if open
+                    if (window.isTeacherAuthenticated && document.getElementById('teacher-dashboard-screen')?.classList.contains('active')) {
+                        window.renderTeacherDashboard();
+                    }
+                }, (error) => {
+                    console.error("Firestore real-time sync error:", error);
+                });
+
+                window.cloudDb = db;
+                window.cloudColRef = attemptsColRef;
+
+            } catch (err) {
+                console.error("Error initializing Firebase Firestore sync:", err);
+            }
+        }
+
+        window.saveAttemptToCloud = async function(record) {
+            if (db && auth?.currentUser) {
+                try {
+                    const attemptsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'trigo_attempts');
+                    const docRef = await addDoc(attemptsColRef, record);
+                    record.docId = docRef.id;
+                } catch (e) {
+                    console.error("Failed to write score record to Firestore:", e);
+                }
+            }
+        };
+
+        window.clearAttemptsFromCloud = async function(scope, selectedSec) {
+            if (db && auth?.currentUser) {
+                try {
+                    const attemptsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'trigo_attempts');
+                    const snapshot = await getDocs(attemptsColRef);
+                    const deletePromises = [];
+
+                    snapshot.forEach((docSnap) => {
+                        const data = docSnap.data();
+                        let deleteThis = false;
+                        if (scope === 'ALL' || selectedSec === 'All Sections') {
+                            deleteThis = true;
+                        } else if (selectedSec === 'Others') {
+                            if (data.section && data.section.startsWith('Others')) deleteThis = true;
+                        } else {
+                            if (data.section === selectedSec) deleteThis = true;
+                        }
+
+                        if (deleteThis) {
+                            deletePromises.push(deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trigo_attempts', docSnap.id)));
+                        }
+                    });
+
+                    await Promise.all(deletePromises);
+                } catch (e) {
+                    console.error("Failed to delete records from Firestore:", e);
+                }
+            }
+        };
+
+        initCloudSync();
+    </script>
+
     <style>
         :root {
             --navy: #000080;
@@ -1129,7 +1239,7 @@
     }
 
     function saveAttempt(name, sec, scr, pct, timeSec, timeFmt) {
-        attemptsHistory.push({
+        const attemptRecord = {
             attemptId: 'att_' + Date.now(),
             name: name,
             section: sec,
@@ -1139,78 +1249,13 @@
             timeFormatted: timeFmt,
             timestamp: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             responses: userAnswers.map(a => a ? a.isCorrect : false)
-        });
+        };
+
+        attemptsHistory.push(attemptRecord);
         localStorage.setItem('trigo_attempts_history', JSON.stringify(attemptsHistory));
-    }
 
-    function toggleReview() {
-        showScreen('review-screen');
-        const container = document.getElementById('review-list-container');
-        container.innerHTML = '';
-
-        userAnswers.forEach((ans, i) => {
-            if (!ans) return;
-            const item = document.createElement('div');
-            item.className = `p-4 rounded-xl border text-xs leading-relaxed ${ans.isCorrect ? 'bg-emerald-50 border-emerald-200 text-emerald-950' : 'bg-rose-50 border-rose-200 text-rose-950'}`;
-            item.innerHTML = `
-                <div class="font-bold mb-1 text-sm">Q${i+1}: ${ans.questionObj.text}</div>
-                <div>Your Answer: <b>${ans.userChoiceText}</b> ${ans.isCorrect ? '✓' : '✕'}</div>
-                ${!ans.isCorrect ? `<div class="text-emerald-800 font-semibold mt-0.5">Correct Answer: <b>${ans.correctChoiceText}</b></div>` : ''}
-                <div class="mt-2 text-slate-700 bg-white/70 p-2 rounded border border-slate-200">💡 <b>Explanation:</b> ${ans.explanation}</div>
-            `;
-            container.appendChild(item);
-        });
-
-        if (window.MathJax) MathJax.typesetPromise();
-    }
-
-    function restartQuiz() {
-        currentQuestions = [...masterQuestions].sort(() => Math.random() - 0.5);
-        currentIndex = 0;
-        score = 0;
-        userAnswers = new Array(currentQuestions.length).fill(null);
-        isAnsweredCurrent = new Array(currentQuestions.length).fill(false);
-        quizStartTime = Date.now();
-        pausedTimeTotal = 0;
-        showScreen('question-screen');
-        renderQuestion();
-    }
-
-    // Modal Reference Controls with Pause Mechanics
-    function openReferenceModal() {
-        modalOpenTime = Date.now();
-        document.getElementById('reference-modal').classList.remove('hidden');
-        if (window.MathJax) MathJax.typesetPromise();
-    }
-
-    function closeReferenceModal() {
-        if (modalOpenTime > 0) {
-            pausedTimeTotal += (Date.now() - modalOpenTime);
-            modalOpenTime = 0;
-        }
-        document.getElementById('reference-modal').classList.add('hidden');
-    }
-
-    // TEACHER ACCESS & DASHBOARD CONTROLS
-    function openTeacherAuthModal() {
-        document.getElementById('teacher-pass-input').value = '';
-        document.getElementById('teacher-auth-error').classList.add('hidden');
-        document.getElementById('teacher-auth-modal').classList.remove('hidden');
-    }
-
-    function closeTeacherAuthModal() {
-        document.getElementById('teacher-auth-modal').classList.add('hidden');
-    }
-
-    function handleTeacherAuthSubmit(e) {
-        e.preventDefault();
-        const inputCode = document.getElementById('teacher-pass-input').value.trim();
-        if (inputCode.toUpperCase() === 'SUHAILA') {
-            isTeacherAuthenticated = true;
-            closeTeacherAuthModal();
-            showTeacherDashboard();
-        } else {
-            document.getElementById('teacher-auth-error').classList.remove('hidden');
+        if (typeof window.saveAttemptToCloud === 'function') {
+            window.saveAttemptToCloud(attemptRecord);
         }
     }
 
@@ -1428,8 +1473,78 @@
         }
 
         localStorage.setItem('trigo_attempts_history', JSON.stringify(attemptsHistory));
+
+        if (typeof window.clearAttemptsFromCloud === 'function') {
+            window.clearAttemptsFromCloud(selectedScope, selectedSec);
+        }
+
         closeClearModal();
         renderTeacherDashboard();
+    }
+
+    // Teacher Authentication Modal Controllers
+    function openTeacherAuthModal() {
+        document.getElementById('teacher-auth-modal').classList.remove('hidden');
+        document.getElementById('teacher-auth-error').classList.add('hidden');
+        const passInput = document.getElementById('teacher-pass-input');
+        if (passInput) passInput.value = '';
+    }
+
+    function closeTeacherAuthModal() {
+        document.getElementById('teacher-auth-modal').classList.add('hidden');
+    }
+
+    function handleTeacherAuthSubmit(e) {
+        e.preventDefault();
+        const pass = document.getElementById('teacher-pass-input').value.trim();
+        if (pass.toUpperCase() === 'SUHAILA') {
+            isTeacherAuthenticated = true;
+            closeTeacherAuthModal();
+            showScreen('teacher-dashboard-screen');
+            renderTeacherDashboard();
+        } else {
+            document.getElementById('teacher-auth-error').classList.remove('hidden');
+        }
+    }
+
+    // In-Quiz Quick Reference Modal Controllers
+    function openReferenceModal() {
+        modalOpenTime = Date.now();
+        document.getElementById('reference-modal').classList.remove('hidden');
+        if (window.MathJax) MathJax.typesetPromise();
+    }
+
+    function closeReferenceModal() {
+        if (modalOpenTime > 0) {
+            pausedTimeTotal += (Date.now() - modalOpenTime);
+            modalOpenTime = 0;
+        }
+        document.getElementById('reference-modal').classList.add('hidden');
+    }
+
+    // Answer Review and Quiz Restart Handlers
+    function toggleReview() {
+        const container = document.getElementById('review-list-container');
+        if (container) {
+            container.innerHTML = '';
+            userAnswers.forEach((ans, idx) => {
+                if (!ans) return;
+                const item = document.createElement('div');
+                item.className = `p-4 rounded-xl border ${ans.isCorrect ? 'border-emerald-200 bg-emerald-50/50' : 'border-rose-200 bg-rose-50/50'}`;
+                item.innerHTML = `
+                    <div class="font-bold text-navy text-sm mb-1">Q${idx + 1}: ${ans.questionObj.text}</div>
+                    <div class="text-xs mb-1">Your Answer: <span class="font-bold ${ans.isCorrect ? 'text-emerald-700' : 'text-rose-700'}">${ans.userChoiceText}</span> ${ans.isCorrect ? '✓' : '✕'}</div>
+                    ${!ans.isCorrect ? `<div class="text-xs text-emerald-800 font-semibold mb-1">Correct Answer: ${ans.correctChoiceText}</div>` : ''}
+                    <div class="text-xs text-slate-600 italic mt-2 border-t border-slate-200/60 pt-1.5">${ans.explanation}</div>
+                `;
+                container.appendChild(item);
+            });
+        }
+        showScreen('review-screen');
+    }
+
+    function restartQuiz() {
+        startQuizFromRefresh();
     }
 </script>
 </body>
